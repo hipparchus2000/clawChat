@@ -1,0 +1,10 @@
+# ClawChat Backend Dependencies
+
+# WebSocket server library
+websockets>=12.0
+
+# YAML configuration parsing
+PyYAML>=6.0
+
+# Async support (built-in for Python 3.7+)
+# asyncio (included in standard library)

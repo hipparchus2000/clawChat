@@ -1,0 +1,128 @@
+# ClawChat Configuration Template
+# Copy this file to config.yaml and update values
+# Never commit config.yaml to version control!
+
+server:
+  # Server host (0.0.0.0 for all interfaces, 127.0.0.1 for local only)
+  host: "0.0.0.0"
+  
+  # Port range for rotation (inclusive)
+  port_range: [8000, 9000]
+  
+  # Maximum concurrent connections
+  max_connections: 100
+  
+  # Connection timeout in seconds
+  connection_timeout: 30
+  
+  # Maximum message size in bytes
+  max_message_size: 10485760  # 10MB
+
+security:
+  # Encryption key for config encryption (32-byte hex string)
+  # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+  encryption_key: "${ENCRYPTION_KEY}"  # Use environment variable
+  
+  # Port rotation interval in seconds
+  rotation_interval: 3600  # 1 hour
+  
+  # Require authentication for file operations
+  require_authentication: true
+  
+  # Allowed file extensions (empty for all)
+  allowed_extensions: []
+  
+  # Maximum file upload size in bytes
+  max_upload_size: 52428800  # 50MB
+  
+  # Rate limiting
+  rate_limit:
+    requests_per_minute: 60
+    burst_limit: 10
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  
+  # Log file path (empty for stdout)
+  file: "/var/log/clawchat/server.log"
+  
+  # Log format
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # Maximum log file size in bytes
+  max_size: 10485760  # 10MB
+  
+  # Number of backup logs to keep
+  backup_count: 5
+
+mega:
+  # Mega.nz credentials for config storage
+  email: "${MEGA_EMAIL}"
+  password: "${MEGA_PASSWORD}"
+  
+  # Path to store encrypted config on Mega.nz
+  config_path: "/clawchat/config.enc"
+  
+  # Upload timeout in seconds
+  upload_timeout: 30
+
+database:
+  # SQLite database path (relative to backend directory)
+  path: "./clawchat.db"
+  
+  # Connection pool size
+  pool_size: 10
+  
+  # Connection timeout in seconds
+  timeout: 30
+
+frontend:
+  # Frontend server URL (for CORS)
+  url: "http://localhost:8000"
+  
+  # Enable CORS (Cross-Origin Resource Sharing)
+  enable_cors: true
+  
+  # Allowed CORS origins (empty for same origin only)
+  allowed_origins: []
+  
+  # PWA settings
+  pwa:
+    name: "ClawChat"
+    short_name: "ClawChat"
+    theme_color: "#1a1a1a"
+    background_color: "#ffffff"
+
+features:
+  # Enable chat functionality
+  chat_enabled: true
+  
+  # Enable file management
+  file_management_enabled: true
+  
+  # Enable port rotation
+  port_rotation_enabled: true
+  
+  # Enable Mega.nz upload
+  mega_upload_enabled: false  # Disable for development
+  
+  # Enable logging to file
+  file_logging_enabled: false  # Disable for development
+
+development:
+  # Enable debug mode (DO NOT enable in production!)
+  debug: false
+  
+  # Auto-reload on code changes
+  auto_reload: false
+  
+  # Log SQL queries
+  log_queries: false
+  
+  # Mock Mega.nz for testing
+  mock_mega: true
+
+# Environment-specific overrides
+# These can be set via environment variables
+# Format: SECTION__KEY (e.g., SERVER__HOST, SECURITY__ENCRYPTION_KEY)

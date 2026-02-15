@@ -1,0 +1,702 @@
+/**
+ * ClawChat Mobile Optimization Stylesheet
+ * 
+ * Mobile-specific enhancements for touch-friendly interfaces
+ * Responsive design optimizations for all screen sizes
+ * Performance and battery efficiency improvements
+ */
+
+/* ============================================
+   Mobile-Specific Viewport & Scaling
+   ============================================ */
+
+/* Enhanced viewport meta for better mobile experience */
+@media screen and (max-width: 768px) {
+    html {
+        /* Prevent text size adjustment on orientation change */
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+        
+        /* Prevent tap highlight */
+        -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+        /* Prevent overscroll bounce on iOS */
+        overscroll-behavior: none;
+        
+        /* Smooth scrolling for mobile */
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+/* ============================================
+   Touch-Friendly Interfaces
+   ============================================ */
+
+/* Minimum touch target size (44x44px as per WCAG) */
+@media (hover: none) and (pointer: coarse) {
+    /* Buttons and interactive elements */
+    button,
+    .btn,
+    .icon-btn,
+    .tab-btn,
+    .send-btn,
+    input[type="submit"],
+    input[type="button"] {
+        min-height: 44px;
+        min-width: 44px;
+        padding: var(--space-sm) var(--space-md);
+    }
+    
+    /* Form inputs */
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    input[type="password"],
+    textarea,
+    select {
+        min-height: 44px;
+        font-size: var(--text-base);
+        padding: var(--space-sm) var(--space-md);
+    }
+    
+    /* Checkboxes and radio buttons */
+    input[type="checkbox"],
+    input[type="radio"] {
+        width: 24px;
+        height: 24px;
+    }
+    
+    /* Labels for checkboxes/radios */
+    .checkbox-label,
+    .radio-label {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: var(--space-sm);
+    }
+    
+    /* Message bubbles */
+    .chat-message {
+        min-height: 44px;
+    }
+    
+    /* Tab navigation */
+    .tab-nav {
+        min-height: 56px;
+    }
+    
+    .tab-btn {
+        min-height: 56px;
+        flex: 1;
+        padding: var(--space-sm);
+    }
+    
+    /* Connection status indicator */
+    .connection-status {
+        min-height: 44px;
+        min-width: 44px;
+        padding: var(--space-sm);
+    }
+}
+
+/* ============================================
+   Mobile-Specific UI Improvements
+   ============================================ */
+
+/* Bottom navigation for mobile */
+@media screen and (max-width: 768px) {
+    /* Adjust header for mobile */
+    .app-header {
+        height: 56px;
+        padding: 0 var(--space-md);
+    }
+    
+    .logo h1 {
+        font-size: var(--text-lg);
+    }
+    
+    /* Main content area */
+    .main-content {
+        padding-bottom: 80px; /* Space for bottom navigation */
+    }
+    
+    /* Enhanced tab navigation at bottom */
+    .tab-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        height: 56px;
+        z-index: 1000;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .tab-btn {
+        flex-direction: column;
+        font-size: var(--text-xs);
+        gap: var(--space-xs);
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        transition: color var(--transition-fast);
+    }
+    
+    .tab-btn.active {
+        color: var(--color-primary);
+        background: transparent;
+    }
+    
+    .tab-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* Adjust message input for mobile */
+    .message-input-container {
+        padding: var(--space-sm) var(--space-md);
+        background: var(--bg-primary);
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .input-wrapper {
+        border-radius: var(--radius-full);
+        background: var(--bg-secondary);
+        padding: var(--space-xs);
+    }
+    
+    .message-input {
+        font-size: var(--text-base);
+        padding: var(--space-sm) var(--space-md);
+        border: none;
+        background: transparent;
+    }
+    
+    .send-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-full);
+        background: var(--color-primary);
+        color: white;
+        border: none;
+    }
+    
+    /* Modal adjustments for mobile */
+    .modal-content {
+        width: 90%;
+        max-width: 400px;
+        margin: var(--space-lg) auto;
+        border-radius: var(--radius-lg);
+    }
+    
+    .modal-header {
+        padding: var(--space-md);
+    }
+    
+    .settings-form {
+        padding: var(--space-md);
+    }
+    
+    /* Toast notifications */
+    .toast {
+        margin: var(--space-sm);
+        max-width: calc(100% - var(--space-md));
+    }
+}
+
+/* ============================================
+   Performance Optimizations for Mobile
+   ============================================ */
+
+/* Reduced animations for better performance */
+@media (prefers-reduced-motion: reduce) or (max-width: 768px) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    /* Simplified animations */
+    .chat-message {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+    
+    .connection-status.connected .status-dot {
+        animation: none;
+    }
+    
+    /* Disable parallax and complex effects */
+    .modal-overlay {
+        backdrop-filter: none;
+    }
+}
+
+/* Battery efficiency: reduced animations */
+@media (prefers-reduced-motion) {
+    .chat-message {
+        animation: none;
+        transition: none;
+    }
+    
+    .status-dot {
+        animation: none;
+    }
+    
+    .toast {
+        animation: none;
+    }
+}
+
+/* ============================================
+   Offline Mode Enhancements
+   ============================================ */
+
+/* Offline indicator */
+.offline-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--color-warning);
+    color: white;
+    text-align: center;
+    padding: var(--space-sm);
+    font-size: var(--text-sm);
+    z-index: 2000;
+    transform: translateY(-100%);
+    transition: transform var(--transition-base);
+}
+
+.offline-indicator.show {
+    transform: translateY(0);
+}
+
+/* Sync status indicator */
+.sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    margin-left: var(--space-sm);
+}
+
+.sync-status.syncing::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--color-primary);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.sync-status.synced::after {
+    content: '✓';
+    color: var(--color-success);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Mobile Keyboard Handling
+   ============================================ */
+
+/* Virtual keyboard awareness */
+@media screen and (max-width: 768px) {
+    /* Adjust layout when keyboard is visible */
+    .keyboard-visible .main-content {
+        padding-bottom: 0;
+    }
+    
+    .keyboard-visible .tab-nav {
+        display: none;
+    }
+    
+    .keyboard-visible .message-input-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg-primary);
+        z-index: 1001;
+    }
+    
+    /* Prevent zoom on input focus in iOS */
+    @supports (-webkit-touch-callout: none) {
+        input,
+        textarea {
+            font-size: 16px; /* Prevent iOS zoom */
+        }
+    }
+}
+
+/* ============================================
+   Responsive Breakpoints
+   ============================================ */
+
+/* Small phones (up to 375px) */
+@media screen and (max-width: 375px) {
+    :root {
+        --space-md: 0.75rem;
+        --space-lg: 1rem;
+        --space-xl: 1.5rem;
+    }
+    
+    .app-header {
+        padding: 0 var(--space-sm);
+    }
+    
+    .logo h1 {
+        font-size: var(--text-base);
+    }
+    
+    .tab-btn span {
+        display: none; /* Hide text on very small screens */
+    }
+    
+    .tab-btn svg {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* Medium phones (376px to 480px) */
+@media screen and (min-width: 376px) and (max-width: 480px) {
+    .tab-btn span {
+        font-size: var(--text-xs);
+    }
+}
+
+/* Large phones (481px to 768px) */
+@media screen and (min-width: 481px) and (max-width: 768px) {
+    .tab-btn {
+        font-size: var(--text-sm);
+    }
+}
+
+/* Tablets (769px to 1024px) */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+    /* Tablet-specific optimizations */
+    .app-header {
+        padding: 0 var(--space-xl);
+    }
+    
+    .main-content {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .tab-nav {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+}
+
+/* ============================================
+   PWA Mobile Installation Prompts
+   ============================================ */
+
+/* Install prompt styling */
+.install-prompt {
+    position: fixed;
+    bottom: 70px; /* Above bottom navigation */
+    left: var(--space-md);
+    right: var(--space-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.install-prompt-icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    background: var(--color-primary-light);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+}
+
+.install-prompt-content {
+    flex: 1;
+}
+
+.install-prompt-title {
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+    color: var(--text-primary);
+}
+
+.install-prompt-description {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+}
+
+.install-prompt-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.install-prompt-close {
+    position: absolute;
+    top: var(--space-sm);
+    right: var(--space-sm);
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.install-prompt-close:hover {
+    background: var(--bg-tertiary);
+}
+
+/* ============================================
+   Hamburger Menu for Mobile Navigation
+   ============================================ */
+
+@media screen and (max-width: 768px) {
+    /* Hamburger menu button */
+    .hamburger-menu {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        width: 30px;
+        height: 24px;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        margin-right: var(--space-sm);
+    }
+    
+    .hamburger-menu span {
+        display: block;
+        width: 100%;
+        height: 3px;
+        background: var(--text-primary);
+        border-radius: 2px;
+        transition: transform var(--transition-base), opacity var(--transition-base);
+    }
+    
+    .hamburger-menu.active span:nth-child(1) {
+        transform: translateY(10px) rotate(45deg);
+    }
+    
+    .hamburger-menu.active span:nth-child(2) {
+        opacity: 0;
+    }
+    
+    .hamburger-menu.active span:nth-child(3) {
+        transform: translateY(-10px) rotate(-45deg);
+    }
+    
+    /* Mobile menu overlay */
+    .mobile-menu-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-overlay);
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity var(--transition-base), visibility var(--transition-base);
+    }
+    
+    .mobile-menu-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    /* Mobile menu panel */
+    .mobile-menu-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 280px;
+        background: var(--bg-primary);
+        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+        transform: translateX(100%);
+        transition: transform var(--transition-base);
+        z-index: 2001;
+        padding: var(--space-xl) var(--space-lg);
+        overflow-y: auto;
+    }
+    
+    .mobile-menu-overlay.show .mobile-menu-panel {
+        transform: translateX(0);
+    }
+    
+    .mobile-menu-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--space-xl);
+    }
+    
+    .mobile-menu-title {
+        font-size: var(--text-lg);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .mobile-menu-close {
+        background: transparent;
+        border: none;
+        color: var(--text-tertiary);
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+    }
+    
+    .mobile-menu-nav {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+    
+    .mobile-menu-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-md);
+        padding: var(--space-md);
+        background: transparent;
+        border: none;
+        border-radius: var(--radius-md);
+        color: var(--text-primary);
+        text-align: left;
+        font-size: var(--text-base);
+        cursor: pointer;
+        transition: background-color var(--transition-fast);
+    }
+    
+    .mobile-menu-item:hover {
+        background: var(--bg-secondary);
+    }
+    
+    .mobile-menu-item svg {
+        width: 20px;
+        height: 20px;
+        color: var(--text-secondary);
+    }
+}
+
+/* ============================================
+   Landscape Mode Optimizations
+   ============================================ */
+
+@media screen and (max-height: 500px) and (orientation: landscape) {
+    /* Compact layout for landscape mode */
+    .app-header {
+        height: 48px;
+    }
+    
+    .tab-nav {
+        height: 48px;
+    }
+    
+    .main-content {
+        padding-bottom: 60px;
+    }
+    
+    .message-input-container {
+        padding: var(--space-xs) var(--space-sm);
+    }
+    
+    .chat-messages {
+        max-height: calc(100vh - 160px);
+    }
+}
+
+/* ============================================
+   High DPI/Retina Display Optimizations
+   ============================================ */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Crisper borders and shadows */
+    .tab-nav {
+        border-top-width: 0.5px;
+    }
+    
+    .message-input-container {
+        border-top-width: 0.5px;
+    }
+    
+    /* Optimize images for retina */
+    .logo svg,
+    .tab-btn svg,
+    .icon-btn svg {
+        shape-rendering: geometricPrecision;
+    }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+    /* Hide non-essential elements when printing */
+    .app-header,
+    .tab-nav,
+    .message-input-container,
+    .install-prompt,
+    .mobile-menu-overlay {
+        display: none !important;
+    }
+    
+    /* Optimize chat messages for print */
+    .chat-messages {
+        overflow: visible;
+        height: auto;
+    }
+    
+    .chat-message {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}

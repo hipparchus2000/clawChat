@@ -1,0 +1,32 @@
+# Test Requirements for ClawChat
+
+# Testing framework
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+pytest-timeout>=2.1.0
+
+# WebSocket support
+websockets>=11.0.0
+
+# Configuration
+pyyaml>=6.0
+
+# Async file operations
+aiofiles>=23.0.0
+
+# Browser automation (for PWA tests)
+pytest-playwright>=0.4.0
+playwright>=1.40.0
+
+# Development utilities
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# Security testing
+cryptography>=41.0.0
+
+# Type hints
+types-PyYAML>=6.0
+types-aiofiles>=23.0

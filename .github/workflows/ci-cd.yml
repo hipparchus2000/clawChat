@@ -1,0 +1,484 @@
+name: ClawChat CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**'
+  schedule:
+    # Daily security and maintenance checks at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+  WORKING_DIRECTORY: '.'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Code Quality and Linting
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8 mypy isort bandit safety
+    
+    - name: Check code formatting with black
+      run: |
+        black --check backend/ tests/ --diff
+    
+    - name: Run flake8 linter
+      run: |
+        flake8 backend/ tests/ --count --max-complexity=10 --max-line-length=88 --statistics
+    
+    - name: Type check with mypy
+      run: |
+        mypy backend/ --ignore-missing-imports --strict
+    
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only backend/ tests/
+    
+    - name: Run bandit security linter
+      run: |
+        bandit -r backend/ -f json -o bandit-report.json
+        bandit -r backend/ -f screen
+    
+    - name: Check for vulnerable dependencies
+      run: |
+        safety check --json --output safety-report.json || true
+
+  # Unit Tests
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install -r tests/requirements.txt
+    
+    - name: Run unit tests
+      run: |
+        pytest tests/ -v \
+          -m "unit" \
+          --cov=backend \
+          --cov-report=xml \
+          --cov-report=term \
+          --junitxml=junit-unit.xml
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: unit-test-results-${{ matrix.python-version }}
+        path: |
+          junit-unit.xml
+          coverage.xml
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        flags: unittests
+
+  # Integration Tests
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+        pip install -r tests/requirements.txt
+    
+    - name: Run integration tests
+      run: |
+        pytest tests/ -v \
+          -m "integration" \
+          --timeout=120 \
+          --tb=short \
+          --junitxml=junit-integration.xml
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: junit-integration.xml
+
+  # Security Tests
+  security-tests:
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r tests/requirements.txt
+        pip install trivy
+    
+    - name: Run security tests
+      run: |
+        pytest tests/ -v \
+          -k "security or traversal or permission" \
+          --tb=short \
+          --junitxml=junit-security.xml
+    
+    - name: Scan for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        extra_args: --only-verified
+    
+    - name: Run Trivy vulnerability scanner
+      run: |
+        trivy fs --security-checks vuln,secret,config .
+    
+    - name: Upload security test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-test-results
+        path: junit-security.xml
+
+  # Frontend Tests
+  frontend-tests:
+    runs-on: ubuntu-latest
+    needs: lint
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIRECTORY }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+    
+    - name: Install Playwright browsers
+      run: |
+        npx playwright install chromium
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r tests/requirements.txt
+    
+    - name: Run PWA tests
+      run: |
+        pytest tests/test_pwa.py -v \
+          --tb=short \
+          --junitxml=junit-pwa.xml
+    
+    - name: Validate PWA manifest
+      run: |
+        python -c "
+import json
+import sys
+try:
+    with open('frontend/manifest.json') as f:
+        manifest = json.load(f)
+    required = ['name', 'short_name', 'start_url', 'icons']
+    for field in required:
+        if field not in manifest:
+            print(f'Missing required field: {field}')
+            sys.exit(1)
+    print('✅ PWA manifest validation passed!')
+except FileNotFoundError:
+    print('⚠️  No manifest.json found in frontend/')
+except json.JSONDecodeError as e:
+    print(f'❌ Invalid JSON in manifest: {e}')
+    sys.exit(1)
+"
+    
+    - name: Upload frontend test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: frontend-test-results
+        path: junit-pwa.xml
+
+  # Build and Package
+  build:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-tests, frontend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Create release package
+      run: |
+        mkdir -p dist
+        tar -czf dist/clawchat-${{ github.sha }}.tar.gz \
+          --exclude='.git' \
+          --exclude='node_modules' \
+          --exclude='__pycache__' \
+          --exclude='*.pyc' \
+          .
+    
+    - name: Upload release package
+      uses: actions/upload-artifact@v4
+      with:
+        name: clawchat-release
+        path: dist/
+
+  # Deploy to Staging
+  deploy-staging:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.clawchat.example.com
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download release package
+      uses: actions/download-artifact@v4
+      with:
+        name: clawchat-release
+        path: dist/
+    
+    - name: Deploy to staging
+      run: |
+        echo "Deploying to staging environment..."
+        # Add your deployment script here
+        # Example: ./deploy/staging.sh
+    
+    - name: Run smoke tests
+      run: |
+        echo "Running smoke tests on staging..."
+        # Add smoke test script here
+
+  # Deploy to Production
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://clawchat.example.com
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download release package
+      uses: actions/download-artifact@v4
+      with:
+        name: clawchat-release
+        path: dist/
+    
+    - name: Deploy to production
+      run: |
+        echo "Deploying to production environment..."
+        # Add your deployment script here
+        # Example: ./deploy/production.sh
+    
+    - name: Run production verification
+      run: |
+        echo "Running production verification tests..."
+        # Add verification script here
+
+  # Documentation Generation
+  docs:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install documentation tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install mkdocs mkdocs-material pymdown-extensions
+    
+    - name: Generate API documentation
+      run: |
+        python -m pydoc -w backend/*.py || true
+    
+    - name: Build documentation site
+      run: |
+        mkdocs build --site-dir _site
+    
+    - name: Deploy documentation
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./_site
+        publish_branch: gh-pages
+
+  # Notifications
+  notify:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-tests, frontend-tests, build]
+    if: always()
+    
+    steps:
+    - name: Send Slack notification
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#clawchat-ci'
+        username: 'GitHub Actions'
+        icon_emoji: ':github:'
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Summary
+  summary:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, security-tests, frontend-tests, build, docs]
+    if: always()
+    
+    steps:
+    - name: Generate test summary
+      run: |
+        echo "# CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Job Status" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Unit Tests | ${{ needs.unit-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Integration Tests | ${{ needs.integration-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Security Tests | ${{ needs.security-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Frontend Tests | ${{ needs.frontend-tests.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Documentation | ${{ needs.docs.result }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Review any failed tests" >> $GITHUB_STEP_SUMMARY
+        echo "- Check security scan results" >> $GITHUB_STEP_SUMMARY
+        echo "- Verify documentation updates" >> $GITHUB_STEP_SUMMARY

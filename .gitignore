@@ -1,0 +1,133 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Config files (except template)
+config.yaml
+config.local.yaml
+*.enc
+*.key
+*.pem
+*.cert
+*.crt
+
+# Mega.nz cache
+.mega*
+
+# Frontend build
+frontend/dist/
+frontend/build/
+frontend/node_modules/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Documentation
+docs/_build/
+
+# Encryption keys (DO NOT COMMIT)
+*.key
+*.pem
+*.priv
+*.secret
+secrets/
+keys/
+
+# Mega.nz config files
+mega-config.enc
+port-config.enc
+
+# OpenClaw integration tokens
+openclaw-token.json
+slack-token.json
+
+# User data
+user-sessions/
+upload-cache/
+
+# Development certificates
+*.csr
+*.der
+*.p12
+*.pfx

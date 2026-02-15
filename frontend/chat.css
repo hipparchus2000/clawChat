@@ -1,0 +1,738 @@
+/**
+ * ClawChat UI Stylesheet
+ * 
+ * Complete chat interface styling with:
+ * - Message bubbles with sender distinction
+ * - User presence indicators
+ * - Typing indicators
+ * - Message status icons
+ * - Responsive design
+ * - Dark/Light theme support
+ */
+
+/* ============================================
+   Chat Container & Layout
+   ============================================ */
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    scroll-behavior: smooth;
+}
+
+/* ============================================
+   Chat Messages
+   ============================================ */
+
+.chat-message {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-sm);
+    max-width: 85%;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    animation: messageSlideIn 0.3s ease forwards;
+}
+
+.chat-message.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Own messages (sent) */
+.chat-message.message-own {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+/* Other messages (received) */
+.chat-message.message-other {
+    align-self: flex-start;
+}
+
+/* ============================================
+   Message Avatar
+   ============================================ */
+
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--text-inverse);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    overflow: hidden;
+    position: relative;
+}
+
+.message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message-avatar span {
+    user-select: none;
+}
+
+.message-avatar-spacer {
+    width: 36px;
+    flex-shrink: 0;
+}
+
+/* ============================================
+   Message Content Wrapper
+   ============================================ */
+
+.message-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: calc(100% - 48px);
+}
+
+/* ============================================
+   Message Bubble
+   ============================================ */
+
+.message-bubble {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-lg);
+    position: relative;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow var(--transition-fast);
+}
+
+.message-bubble:hover {
+    box-shadow: var(--shadow-md);
+}
+
+/* Own message bubble */
+.message-own .message-bubble {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    color: var(--text-inverse);
+    border-bottom-right-radius: var(--radius-sm);
+}
+
+/* Other message bubble */
+.message-other .message-bubble {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-bottom-left-radius: var(--radius-sm);
+}
+
+/* ============================================
+   Message Header (Sender info)
+   ============================================ */
+
+.message-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-xs);
+}
+
+.message-sender {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: inherit;
+    opacity: 0.9;
+}
+
+/* ============================================
+   Presence Indicators
+   ============================================ */
+
+.presence-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    position: relative;
+    border: 2px solid var(--bg-primary);
+    box-sizing: content-box;
+}
+
+.presence-indicator.online {
+    background-color: var(--color-success);
+    box-shadow: 0 0 0 2px var(--bg-primary), 0 0 8px var(--color-success);
+}
+
+.presence-indicator.offline {
+    background-color: var(--text-tertiary);
+}
+
+.presence-indicator.away {
+    background-color: var(--color-warning);
+}
+
+.presence-indicator.typing {
+    background-color: var(--color-info);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { 
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% { 
+        opacity: 0.6;
+        transform: scale(1.1);
+    }
+}
+
+/* ============================================
+   Message Text
+   ============================================ */
+
+.message-text {
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.message-text .emoji {
+    font-size: 1.2em;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+/* Rich text formatting */
+.message-text strong {
+    font-weight: 700;
+}
+
+.message-text em {
+    font-style: italic;
+}
+
+.message-text code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 0.1em 0.3em;
+    border-radius: var(--radius-sm);
+}
+
+.message-own .message-text code {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.message-text del {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.message-text a.message-link {
+    color: inherit;
+    text-decoration: underline;
+    opacity: 0.9;
+}
+
+.message-text a.message-link:hover {
+    opacity: 1;
+}
+
+.message-own .message-text a.message-link {
+    color: var(--text-inverse);
+}
+
+/* ============================================
+   Message Footer (Timestamp & Status)
+   ============================================ */
+
+.message-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    margin-top: var(--space-xs);
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.message-time {
+    white-space: nowrap;
+}
+
+.message-status {
+    display: flex;
+    align-items: center;
+}
+
+.status-icon {
+    display: block;
+}
+
+.status-icon.sending {
+    animation: spin 1s linear infinite;
+}
+
+.status-icon.read {
+    color: #60a5fa;
+}
+
+.status-icon.error {
+    color: var(--color-error);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================
+   Typing Indicator
+   ============================================ */
+
+.typing-indicator {
+    opacity: 1;
+    transform: none;
+    animation: none;
+}
+
+.typing-bubble {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    border-bottom-left-radius: var(--radius-sm);
+    padding: var(--space-sm) var(--space-md);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    box-shadow: var(--shadow-sm);
+}
+
+.typing-text {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    background-color: var(--text-tertiary);
+    border-radius: 50%;
+    animation: typingBounce 1.4s ease-in-out infinite both;
+}
+
+.typing-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+    0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   Scroll to Bottom Indicator
+   ============================================ */
+
+.scroll-to-bottom {
+    position: absolute;
+    bottom: calc(var(--input-height) + var(--space-md));
+    right: var(--space-lg);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-full);
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all var(--transition-base);
+    pointer-events: none;
+    z-index: 50;
+}
+
+.scroll-to-bottom.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.scroll-to-bottom:hover {
+    background-color: var(--bg-secondary);
+    transform: scale(1.1);
+}
+
+.scroll-indicator-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    background-color: var(--color-primary);
+    color: var(--text-inverse);
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 9px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.scroll-to-bottom[data-new-messages="true"] .scroll-indicator-badge {
+    display: flex;
+}
+
+/* ============================================
+   System Messages
+   ============================================ */
+
+.chat-message.message-system {
+    align-self: center;
+    max-width: 90%;
+}
+
+.chat-message.message-system .system-text {
+    font-size: var(--text-xs);
+    color: var(--text-tertiary);
+    padding: var(--space-xs) var(--space-md);
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-full);
+    text-align: center;
+}
+
+/* ============================================
+   Message Groups (Consecutive messages)
+   ============================================ */
+
+.chat-message + .chat-message {
+    margin-top: 2px;
+}
+
+.chat-message.message-own + .chat-message.message-other,
+.chat-message.message-other + .chat-message.message-own {
+    margin-top: var(--space-md);
+}
+
+/* Hide avatar for consecutive messages from same sender */
+.chat-message.message-other + .chat-message.message-other {
+    margin-top: 2px;
+}
+
+.chat-message.message-other + .chat-message.message-other .message-avatar,
+.chat-message.message-other + .chat-message.message-other .message-avatar-spacer {
+    visibility: hidden;
+}
+
+/* ============================================
+   Empty State
+   ============================================ */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-2xl);
+    text-align: center;
+    color: var(--text-secondary);
+    flex: 1;
+}
+
+.empty-icon {
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-md);
+    opacity: 0.6;
+}
+
+.empty-state p {
+    font-size: var(--text-lg);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.empty-subtitle {
+    font-size: var(--text-sm) !important;
+    color: var(--text-secondary) !important;
+    margin-top: var(--space-xs);
+    opacity: 0.8;
+}
+
+/* ============================================
+   User List / Sidebar (optional)
+   ============================================ */
+
+.user-list {
+    background-color: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    padding: var(--space-md);
+    overflow-y: auto;
+}
+
+.user-list-header {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: var(--space-md);
+    letter-spacing: 0.05em;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+}
+
+.user-item:hover {
+    background-color: var(--bg-secondary);
+}
+
+.user-item-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-inverse);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    position: relative;
+}
+
+.user-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-item-name {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-item-status {
+    font-size: 11px;
+    color: var(--text-tertiary);
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+/* Tablet */
+@media (min-width: 640px) {
+    .chat-messages {
+        padding: var(--space-lg);
+        gap: var(--space-md);
+    }
+
+    .chat-message {
+        max-width: 75%;
+    }
+
+    .message-bubble {
+        padding: var(--space-md) var(--space-lg);
+    }
+
+    .message-text {
+        font-size: var(--text-base);
+    }
+
+    .message-avatar,
+    .message-avatar-spacer {
+        width: 40px;
+        height: 40px;
+    }
+
+    .message-content-wrapper {
+        max-width: calc(100% - 56px);
+    }
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+    .chat-message {
+        max-width: 65%;
+    }
+
+    .message-bubble {
+        padding: var(--space-md) var(--space-lg);
+    }
+}
+
+/* Mobile optimizations */
+@media (max-width: 639px) {
+    .chat-messages {
+        padding: var(--space-sm);
+    }
+
+    .chat-message {
+        max-width: 90%;
+    }
+
+    .message-avatar,
+    .message-avatar-spacer {
+        width: 32px;
+        height: 32px;
+        font-size: 10px;
+    }
+
+    .scroll-to-bottom {
+        width: 40px;
+        height: 40px;
+        right: var(--space-md);
+        bottom: calc(var(--input-height) + var(--space-sm));
+    }
+
+    .typing-bubble {
+        padding: var(--space-xs) var(--space-sm);
+    }
+
+    .typing-text {
+        font-size: var(--text-xs);
+    }
+}
+
+/* ============================================
+   Dark Mode Adjustments
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+    .message-other .message-bubble {
+        background-color: var(--bg-tertiary);
+        border-color: var(--border-color);
+    }
+
+    .typing-bubble {
+        background-color: var(--bg-tertiary);
+    }
+
+    .scroll-to-bottom {
+        background-color: var(--bg-secondary);
+        border-color: var(--border-color);
+    }
+
+    .scroll-to-bottom:hover {
+        background-color: var(--bg-tertiary);
+    }
+
+    .presence-indicator {
+        border-color: var(--bg-primary);
+    }
+
+    .status-icon.read {
+        color: #93c5fd;
+    }
+}
+
+/* ============================================
+   Accessibility
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-message {
+        animation: none;
+        opacity: 1;
+        transform: none;
+    }
+
+    .typing-dots span {
+        animation: none;
+    }
+
+    .presence-indicator.typing {
+        animation: none;
+    }
+
+    .status-icon.sending {
+        animation: none;
+    }
+
+    .chat-messages {
+        scroll-behavior: auto;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .message-own .message-bubble {
+        border: 2px solid currentColor;
+    }
+
+    .message-other .message-bubble {
+        border: 2px solid currentColor;
+    }
+
+    .typing-bubble {
+        border: 2px solid currentColor;
+    }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+
+@media print {
+    .scroll-to-bottom,
+    .typing-indicator,
+    .message-status,
+    .presence-indicator {
+        display: none !important;
+    }
+
+    .chat-message {
+        break-inside: avoid;
+    }
+}
