@@ -9,7 +9,7 @@ This file contains project-specific context that persists across conversations. 
 **ClawChat** - A chat application with UDP hole punching for P2P communication.
 
 ### Tech Stack
-- **Backend**: Python (UDP server, hole punching logic)
+- **Server**: Python UDP hole punching server (in `udp_hole_punching/`)
 - **Client**: Python with Tkinter GUI (file browser for security files)
 - **Key Features**: P2P communication, UDP hole punching, file-based security exchange
 - **Security**: AES-256-GCM encryption, in-band key rotation, Compromised Protocol
@@ -24,11 +24,11 @@ This file contains project-specific context that persists across conversations. 
 ## Directory Structure
 
 ```
-├── backend/               - Python backend code (legacy WebSocket)
-├── udp_hole_punching/     - NEW: UDP hole punching implementation
+├── udp_hole_punching/     - ACTIVE: UDP hole punching implementation
 │   ├── src/               - Source code
 │   ├── config/            - Configuration files
 │   └── scripts/           - Installation scripts
+├── backend-archive/       - ARCHIVED: Legacy WebSocket server
 ├── frontend-archive/      - ARCHIVED: Original browser client
 ├── docs/                  - Documentation (markdown files)
 ├── tests/                 - Test files
@@ -86,7 +86,8 @@ This file contains project-specific context that persists across conversations. 
 - **NEW**: File-based security exchange in `/home/openclaw/clawchat/security/`
 - **NEW**: Compromised Protocol for emergency key rotation
 - **ARCHIVED**: Original browser client → `frontend-archive/`
-- **IN PROGRESS**: Python UDP hole punching client/server
+- **ARCHIVED**: Legacy WebSocket backend → `backend-archive/`
+- **ACTIVE**: Python UDP hole punching client/server in `udp_hole_punching/`
 
 ---
 

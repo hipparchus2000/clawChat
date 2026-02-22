@@ -138,6 +138,13 @@ class NATDetector:
             Strategy dictionary with recommendations
         """
         strategies = {
+            NATType.UNKNOWN: {
+                "description": "Unknown NAT type",
+                "simultaneous": True,
+                "timeout": 60,
+                "retries": 15,
+                "success_rate": 0.70
+            },
             NATType.OPEN: {
                 "description": "Direct connection possible",
                 "simultaneous": False,

@@ -37,6 +37,7 @@ class SecurityFile:
     supported_ciphers: List[str]
     nat_traversal: Dict
     compromised_protocol: Dict
+    connection_id: str = ""  # Unique connection identifier
     
     def to_json(self) -> str:
         """Convert to JSON string."""
@@ -95,7 +96,8 @@ class SecurityFileManager:
         server_ip: str,
         server_port: int,
         shared_secret: bytes,
-        validity_hours: int = 1
+        validity_hours: int = 1,
+        connection_id: str = None
     ) -> str:
         """
         Create a new security file (server-side).
@@ -121,6 +123,11 @@ class SecurityFileManager:
         valid_until = now + (validity_hours * 3600)
         next_rotation = now + 3600  # 1 hour
         
+        # Generate connection ID if not provided
+        if connection_id is None:
+            import secrets
+            connection_id = f"clawchat-{now}-{secrets.token_hex(8)}"
+        
         import base64
         
         security_data = SecurityFile(
@@ -145,7 +152,8 @@ class SecurityFileManager:
             compromised_protocol={
                 "signal": "CLAWCHAT_COMPROMISED_V2",
                 "response_timeout": 10
-            }
+            },
+            connection_id=connection_id
         )
         
         # Encrypt the data

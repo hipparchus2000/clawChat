@@ -57,7 +57,7 @@ class Message:
         msg_id_bytes = self.message_id.encode('utf-8')
         
         header = struct.pack(
-            '!Bdf',
+            '!BdB',
             self.msg_type,
             self.timestamp,
             len(msg_id_bytes)
@@ -70,15 +70,10 @@ class Message:
     @classmethod
     def from_bytes(cls, data: bytes) -> 'Message':
         """Parse message from bytes."""
-        # Parse header
+        # Parse header: [type:1][timestamp:8][id_len:1]
         msg_type = struct.unpack('!B', data[0:1])[0]
         timestamp = struct.unpack('!d', data[1:9])[0]
-        id_len = struct.unpack('!f', data[9:13])[0]  # This should be '!B' for single byte
-        
-        # Re-parse with correct format
-        msg_type = struct.unpack('!B', data[0:1])[0]
-        timestamp = struct.unpack('!d', data[1:9])[0]
-        id_len = int(struct.unpack('!B', data[9:10])[0])
+        id_len = struct.unpack('!B', data[9:10])[0]
         
         msg_id = data[10:10+id_len].decode('utf-8')
         
