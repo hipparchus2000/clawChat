@@ -1,0 +1,25 @@
+{
+  "name": "clawchat-backend",
+  "version": "0.1.0",
+  "description": "ClawChat WebSocket Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "websocket",
+    "chat",
+    "clawchat",
+    "realtime"
+  ],
+  "author": "OpenClaw",
+  "license": "MIT"
+}

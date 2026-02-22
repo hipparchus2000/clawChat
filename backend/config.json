@@ -1,0 +1,8 @@
+{
+  "host": "0.0.0.0",
+  "port": 8765,
+  "maxConnections": 100,
+  "pingInterval": 20000,
+  "pingTimeout": 10000,
+  "logLevel": "info"
+}
