@@ -1,0 +1,21 @@
+# ClawChat Client Configuration
+
+client:
+  name: "ClawChat Client"
+  use_gui: true  # Use Tkinter file browser
+
+security:
+  # Bootstrap key - should be set via environment variable
+  # CLAWCHAT_BOOTSTRAP_KEY
+  bootstrap_key: null
+
+encryption:
+  algorithm: "AES-256-GCM"
+
+networking:
+  hole_punch_timeout: 60
+  retry_interval: 0.5
+  nat_detection: true
+
+logging:
+  level: "INFO"

@@ -1,0 +1,28 @@
+# ClawChat Server Configuration
+
+server:
+  id: "clawchat-server"
+  name: "ClawChat Server"
+  ip: "0.0.0.0"  # Listen on all interfaces
+  port: null     # null = random port, or specify (49152-65535)
+
+security:
+  directory: "/home/openclaw/clawchat/security"
+  file_validity_hours: 1
+  cleanup_interval_hours: 24
+
+encryption:
+  algorithm: "AES-256-GCM"
+  key_rotation_interval: 3600  # seconds
+  grace_period: 300  # seconds
+
+networking:
+  hole_punch_timeout: 60
+  retry_interval: 0.5
+  keepalive_interval: 30
+
+logging:
+  level: "INFO"
+  file: "/home/openclaw/clawchat/logs/server.log"
+  max_size: 10485760  # 10MB
+  backup_count: 5

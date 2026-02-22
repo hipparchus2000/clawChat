@@ -1,0 +1,31 @@
+[Unit]
+Description=ClawChat UDP Hole Punching Server
+After=network.target
+
+[Service]
+Type=simple
+User=openclaw
+Group=openclaw
+WorkingDirectory=/home/openclaw/clawchat
+Environment=PYTHONPATH=/home/openclaw/clawchat
+Environment=CLAWCHAT_CONFIG=/home/openclaw/clawchat/config/server.yaml
+Environment=CLAWCHAT_BOOTSTRAP_KEY=bootstrap-key-32bytes-change-in-production!
+ExecStart=/home/openclaw/clawchat/venv/bin/python /home/openclaw/clawchat/run_server.py --ip 0.0.0.0
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=clawchat-server
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/home/openclaw/clawchat/security /home/openclaw/clawchat/logs
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target
