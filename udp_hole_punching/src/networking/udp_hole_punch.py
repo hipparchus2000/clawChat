@@ -12,7 +12,10 @@ from dataclasses import dataclass
 from typing import Optional, Callable, Tuple
 from enum import Enum
 
-from ..security.encryption import CryptoManager
+try:
+    from ..security.encryption import CryptoManager
+except ImportError:
+    from security.encryption import CryptoManager
 
 
 class HolePunchState(Enum):
@@ -309,7 +312,10 @@ class UDPHolePuncher:
 # Example usage
 if __name__ == "__main__":
     import secrets
-    from ..security.encryption import derive_session_keys
+    try:
+        from ..security.encryption import derive_session_keys
+    except ImportError:
+        from security.encryption import derive_session_keys
     
     # Test setup
     shared_secret = secrets.token_bytes(32)

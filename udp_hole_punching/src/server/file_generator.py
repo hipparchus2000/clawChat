@@ -10,7 +10,10 @@ import secrets
 from typing import Optional
 from pathlib import Path
 
-from ..security.file_manager import SecurityFileManager
+try:
+    from ..security.file_manager import SecurityFileManager
+except ImportError:
+    from security.file_manager import SecurityFileManager
 
 
 class SecurityFileGenerator:
