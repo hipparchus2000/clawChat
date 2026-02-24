@@ -114,7 +114,8 @@ Security files (`.sec`) are encrypted JSON containing:
 ```
 
 - Files are encrypted with AES-256-GCM
-- Valid for 1 hour by default
+- Valid for 11 minutes by default
+- Auto-regenerates every 10 minutes if no client connects
 - Stored with 600 permissions (owner read/write only)
 
 ## Compromised Protocol
@@ -180,7 +181,8 @@ server:
 
 security:
   directory: "/home/openclaw/clawchat/security"
-  file_validity_hours: 1
+  file_validity_minutes: 11  # Session key valid for 11 minutes
+  auto_regenerate_minutes: 10  # Regenerate every 10 min if no client
 
 encryption:
   key_rotation_interval: 3600  # seconds
@@ -246,8 +248,9 @@ sudo -u openclaw python3 /home/openclaw/clawchat/run_server.py
 
 - **Bootstrap Key**: Protect the bootstrap key used to encrypt security files
 - **File Transfer**: Transfer `.sec` files securely (USB, encrypted message)
-- **File Validity**: Security files expire after 1 hour (configurable)
-- **Key Rotation**: Keys rotate automatically every hour
+- **File Validity**: Security files expire after 11 minutes (configurable)
+- **Auto-Regeneration**: New file generated every 10 minutes until client connects
+- **Key Rotation**: Keys rotate automatically every hour after connection
 - **Compromised Protocol**: Use immediately if keys are suspected stolen
 
 ## License

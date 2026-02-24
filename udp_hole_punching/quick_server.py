@@ -29,10 +29,10 @@ sec_path = file_manager.create_security_file(
     server_ip='127.0.0.1',
     server_port=55555,
     shared_secret=shared_secret,
-    validity_hours=1,
+    validity_minutes=11,  # Valid for 11 minutes
     connection_id=connection_id
 )
-print(f'Security file created: {sec_path}')
+print(f'Security file created: {sec_path} (valid for 11 minutes)')
 
 # Setup crypto
 crypto = CryptoManager()

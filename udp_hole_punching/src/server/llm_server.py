@@ -68,6 +68,9 @@ class ClawChatLLMServer:
         # Stats
         self.messages_received = 0
         self.messages_sent = 0
+        
+        # Security file generator for auto-regeneration
+        self.file_generator = None
     
     def _select_random_port(self) -> int:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -79,15 +82,18 @@ class ClawChatLLMServer:
     def generate_initial_security_file(self) -> str:
         from server.file_generator import SecurityFileGenerator
         
-        generator = SecurityFileGenerator(
+        self.file_generator = SecurityFileGenerator(
             self.security_directory,
             self.bootstrap_key,
             self.server_id
         )
-        generator.set_server_info(self.server_ip, self.server_port)
+        self.file_generator.set_server_info(self.server_ip, self.server_port)
         
-        filepath = generator.generate_file()
-        self.shared_secret = generator.get_current_secret()
+        filepath = self.file_generator.generate_file()
+        self.shared_secret = self.file_generator.get_current_secret()
+        
+        # Start auto-regeneration (every 10 min if no client)
+        self.file_generator.start_auto_regeneration()
         
         return filepath
     
@@ -159,6 +165,8 @@ class ClawChatLLMServer:
         print(f"[Server] Listening on UDP {self.server_ip}:{self.server_port}")
         print(f"[Server] LLM Bridge: {self.llm_config.provider}")
         print(f"[Server] Cron Scheduler: {len(self.cron_scheduler.jobs)} jobs")
+        print(f"[Server] Security file valid for 11 minutes")
+        print(f"[Server] Auto-regeneration: every 10 min until client connects")
         print(f"[Server] Press Ctrl+C to stop\n")
         
         self.running = True
@@ -192,6 +200,10 @@ class ClawChatLLMServer:
         if not self.peer_address:
             self.peer_address = addr
             print(f"[Server] Client connected: {addr}")
+            
+            # Notify file generator to stop auto-regeneration
+            if self.file_generator:
+                self.file_generator.mark_client_connected()
         
         if msg.msg_type == MessageType.CHAT:
             self._handle_chat(msg, addr)
@@ -362,6 +374,8 @@ class ClawChatLLMServer:
             self.llm_bridge.stop()
         if self.cron_scheduler:
             self.cron_scheduler.stop()
+        if self.file_generator:
+            self.file_generator.stop_auto_regeneration()
         print(f"\n[Server] Stopped. Rx: {self.messages_received}, Tx: {self.messages_sent}")
 
 

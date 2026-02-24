@@ -96,7 +96,7 @@ class SecurityFileManager:
         server_ip: str,
         server_port: int,
         shared_secret: bytes,
-        validity_hours: int = 1,
+        validity_minutes: int = 11,
         connection_id: str = None
     ) -> str:
         """
@@ -108,7 +108,7 @@ class SecurityFileManager:
             server_ip: Server public IP address
             server_port: Server UDP port
             shared_secret: 32-byte shared secret
-            validity_hours: How long the file is valid (default 1 hour)
+            validity_minutes: How long the file is valid (default 11 minutes)
             
         Returns:
             Path to created file
@@ -120,8 +120,8 @@ class SecurityFileManager:
             raise RuntimeError("Bootstrap key not configured")
         
         now = int(time.time())
-        valid_until = now + (validity_hours * 3600)
-        next_rotation = now + 3600  # 1 hour
+        valid_until = now + (validity_minutes * 60)
+        next_rotation = now + 600  # 10 minutes
         
         # Generate connection ID if not provided
         if connection_id is None:
@@ -275,7 +275,7 @@ if __name__ == "__main__":
             server_ip="127.0.0.1",
             server_port=54321,
             shared_secret=shared_secret,
-            validity_hours=1
+            validity_minutes=11
         )
         print(f"Created: {filepath}")
         

@@ -98,7 +98,8 @@ server:
 
 security:
   directory: "$INSTALL_DIR/security"
-  file_validity_hours: 1
+  file_validity_minutes: 11  # Session key valid for 11 minutes
+  auto_regenerate_minutes: 10  # Regenerate every 10 min if no client
   cleanup_interval_hours: 24
 
 logging:
