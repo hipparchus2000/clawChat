@@ -12,6 +12,13 @@ Environment Variables:
 
 import sys
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file if present
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))

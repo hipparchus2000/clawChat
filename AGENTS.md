@@ -76,7 +76,37 @@ This file contains project-specific context that persists across conversations. 
 - **Path separator**: Use backslashes (`\`) or forward slashes, but be mindful of Windows conventions
 
 ### Common Commands
-- (To be filled by user)
+
+**Setup (one time):**
+```powershell
+cd udp_hole_punching
+copy .env.example .env
+# Edit .env and add your API keys
+```
+
+**Start LLM Server (with AI):**
+```powershell
+cd udp_hole_punching
+python run_llm_server.py --provider deepseek
+```
+
+**Start Standard Server (echo):**
+```powershell
+cd udp_hole_punching
+python run_server.py --ip 127.0.0.1 --port 55555
+```
+
+**Start GUI Client:**
+```powershell
+cd udp_hole_punching
+python run_gui_client.py
+```
+
+**Test LLM Bridge (mock mode):**
+```powershell
+cd udp_hole_punching
+python test_llm_bridge.py
+```
 
 ### Known Issues / TODOs
 - See `docs/todo.md` for task tracking
@@ -85,6 +115,23 @@ This file contains project-specific context that persists across conversations. 
 - **REMOVED**: Mega.nz integration (paywall issues)
 - **NEW**: File-based security exchange in `/home/openclaw/clawchat/security/`
 - **NEW**: Compromised Protocol for emergency key rotation
+- **NEW**: LLM Bridge - Persistent AI conversation support
+  - Supports DeepSeek, OpenAI, Anthropic
+  - Conversation persists between client reconnections
+  - Configurable via environment variables
+- **NEW**: Context System - OpenClaw-style agentic loop
+  - SOUL.md → AGENTS.md → USER.md → MEMORY.md → memory/YYYY-MM-DD.md
+  - Priority-based context loading (100 → 10)
+  - Auto-assembled into LLM system prompt
+- **NEW**: Cron Scheduler - Automated AI task execution
+  - File-based CRON.md with auto-reload
+  - Jobs execute through LLM bridge (not shell)
+  - File watcher reloads within 5 seconds of changes
+- **NEW**: File Manager Protocol (2026-02-24)
+  - Complete file operations: list, download, upload, delete, rename, mkdir
+  - Chunked transfers for large files
+  - Path validation prevents directory traversal
+  - Sandboxed to CLAWCHAT_BASE_PATH
 - **ARCHIVED**: Original browser client → `frontend-archive/`
 - **ARCHIVED**: Legacy WebSocket backend → `backend-archive/`
 - **ACTIVE**: Python UDP hole punching client/server in `udp_hole_punching/`
@@ -102,5 +149,6 @@ Key documents in `docs/`:
 
 ---
 
-*Last updated: 2026-02-22*
+*Last updated: 2026-02-24*
+*Major features added: File Manager Protocol, Context System, Cron Scheduler*
 *To update: Tell me what to add/change and I'll edit this file*

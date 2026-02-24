@@ -14,6 +14,12 @@ stun>=0.1.0
 # Async support
 asyncio-mqtt>=0.16.0
 
+# Environment variables
+python-dotenv>=1.0.0
+
+# API clients
+requests>=2.31.0
+
 # Logging and utilities
 structlog>=24.1.0
 python-json-logger>=2.0.7

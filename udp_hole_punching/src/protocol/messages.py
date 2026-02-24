@@ -33,6 +33,20 @@ class MessageType(IntEnum):
     # Security
     COMPROMISED = 0x30
     COMPROMISED_ACK = 0x31
+    
+    # Cron / Scheduled Tasks
+    CRON_LIST = 0x40        # Request/response for cron job list
+    CRON_RUN = 0x41         # Request to run job immediately
+    CRON_RELOAD = 0x42      # Request to reload cron file
+    
+    # File Operations
+    FILE_LIST = 0x50        # Request/response directory listing
+    FILE_DOWNLOAD = 0x51    # Request file download
+    FILE_UPLOAD = 0x52      # Upload file chunk
+    FILE_DELETE = 0x53      # Delete file/directory
+    FILE_RENAME = 0x54      # Rename file/directory
+    FILE_MKDIR = 0x55       # Create directory
+    FILE_STAT = 0x56        # Get file info
 
 
 @dataclass

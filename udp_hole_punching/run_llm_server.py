@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """
-ClawChat GUI Client - Entry Point
+Run ClawChat LLM Server
+
+Usage:
+    python run_llm_server.py --provider deepseek
+    python run_llm_server.py --provider openai
 """
 
 import sys
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
 # Load .env file if present
+from dotenv import load_dotenv
 env_path = Path(__file__).parent / '.env'
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, 'src')
 
-# Now imports will work
-from gui_client import main
+from server.llm_server import main
 
 if __name__ == "__main__":
     main()

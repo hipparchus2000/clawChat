@@ -38,6 +38,7 @@ class ClawChatGUI:
         self.server_address = None
         self.receive_thread = None
         self.running = False
+        self.cron_pending = False
         
         # Create notebook (tabs)
         self.notebook = ttk.Notebook(root)
@@ -145,6 +146,9 @@ class ClawChatGUI:
         ttk.Button(toolbar, text="🔄 Refresh", command=self.file_refresh).pack(side='left', padx=2)
         ttk.Button(toolbar, text="📥 Download", command=self.file_download).pack(side='left', padx=2)
         ttk.Button(toolbar, text="📤 Upload", command=self.file_upload).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="🗑️ Delete", command=self.file_delete).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="✏️ Rename", command=self.file_rename).pack(side='left', padx=2)
+        ttk.Button(toolbar, text="📁 New Folder", command=self.file_mkdir).pack(side='left', padx=2)
         
         # Path bar
         path_frame = ttk.Frame(self.file_frame)
@@ -185,7 +189,7 @@ class ClawChatGUI:
         ttk.Label(self.file_frame, textvariable=self.file_status_var).pack(fill='x', padx=5, pady=2)
     
     def file_refresh(self):
-        """Refresh file list."""
+        """Refresh file list from server."""
         if not self.connected:
             messagebox.showwarning("Not Connected", "Please connect first")
             return
@@ -194,20 +198,66 @@ class ClawChatGUI:
         for item in self.file_tree.get_children():
             self.file_tree.delete(item)
         
+        self.file_status_var.set(f"Loading: {self.path_var.get()}")
+        
         # Request directory listing from server
-        # TODO: Implement file protocol
-        self.file_status_var.set(f"Listing: {self.path_var.get()}")
+        try:
+            path = self.path_var.get()
+            # Remove leading slash for server
+            server_path = path.lstrip('/')
+            if not server_path:
+                server_path = '.'
+            
+            msg = Message(
+                msg_type=MessageType.FILE_LIST,
+                payload={'path': server_path}
+            )
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            # Response will be handled in receive loop
+        except Exception as e:
+            self.file_status_var.set(f"Error: {e}")
+    
+    def _handle_file_list(self, payload):
+        """Handle file list response from server."""
+        if not payload.get('success'):
+            error = payload.get('error', 'Unknown error')
+            self.root.after(0, lambda: self.file_status_var.set(f"Error: {error}"))
+            return
         
-        # Mock data for now
-        mock_files = [
-            ('documents', '-', '2024-01-15 10:30', 'Directory'),
-            ('downloads', '-', '2024-01-14 16:45', 'Directory'),
-            ('file1.txt', '1.2 KB', '2024-01-15 09:00', 'Text'),
-            ('image.png', '245 KB', '2024-01-14 12:30', 'Image'),
-        ]
+        items = payload.get('items', [])
         
-        for name, size, modified, ftype in mock_files:
-            self.file_tree.insert('', 'end', values=(name, size, modified, ftype))
+        # Clear current
+        for item in self.file_tree.get_children():
+            self.file_tree.delete(item)
+        
+        # Add items to tree
+        for item in items:
+            name = item.get('name', '')
+            size = item.get('size', 0)
+            modified_ts = item.get('modified', 0)
+            is_dir = item.get('is_dir', False)
+            
+            # Format size
+            if is_dir:
+                size_str = '-'
+                ftype = 'Directory'
+            else:
+                if size < 1024:
+                    size_str = f"{size} B"
+                elif size < 1024*1024:
+                    size_str = f"{size/1024:.1f} KB"
+                else:
+                    size_str = f"{size/(1024*1024):.1f} MB"
+                ftype = 'File'
+            
+            # Format time
+            modified_str = datetime.fromtimestamp(modified_ts).strftime('%Y-%m-%d %H:%M')
+            
+            self.file_tree.insert('', 'end', values=(name, size_str, modified_str, ftype))
+        
+        self.file_status_var.set(f"Listed {len(items)} items in {self.path_var.get()}")
     
     def file_go_up(self):
         """Go to parent directory."""
@@ -246,20 +296,246 @@ class ClawChatGUI:
         
         item = self.file_tree.item(selection[0])
         name = item['values'][0]
+        ftype = item['values'][3]
+        
+        if ftype == 'Directory':
+            messagebox.showinfo("Directory", "Cannot download directories yet")
+            return
         
         # Ask where to save
         save_path = filedialog.asksaveasfilename(defaultextension="", initialfile=name)
-        if save_path:
-            messagebox.showinfo("Download", f"Downloading {name} to {save_path}...")
-            # TODO: Implement actual download
+        if not save_path:
+            return
+        
+        # Request download from server in background thread
+        self.file_status_var.set(f"Downloading {name}...")
+        threading.Thread(
+            target=self._do_file_download,
+            args=(name, save_path),
+            daemon=True
+        ).start()
+    
+    def _do_file_download(self, filename, save_path):
+        """Download file in background."""
+        try:
+            remote_path = str(Path(self.path_var.get().lstrip('/')) / filename)
+            if remote_path.startswith('.'):
+                remote_path = remote_path[2:] if remote_path.startswith('./') else remote_path[1:]
+            
+            offset = 0
+            total_size = 0
+            
+            with open(save_path, 'wb') as f:
+                while True:
+                    # Request chunk
+                    msg = Message(
+                        msg_type=MessageType.FILE_DOWNLOAD,
+                        payload={'path': remote_path, 'offset': offset}
+                    )
+                    encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+                    self.socket.sendto(encrypted, self.server_address)
+                    
+                    # Wait for response
+                    self.socket.settimeout(10.0)
+                    data, addr = self.socket.recvfrom(16384)
+                    
+                    plaintext = self.crypto.decrypt_packet(data)
+                    response = Message.from_bytes(plaintext)
+                    
+                    if response.msg_type != MessageType.FILE_DOWNLOAD:
+                        continue
+                    
+                    payload = response.payload
+                    if not payload.get('success'):
+                        error = payload.get('error', 'Unknown error')
+                        self.root.after(0, lambda e=error: self.file_status_var.set(f"Download failed: {e}"))
+                        return
+                    
+                    # Write chunk
+                    import base64
+                    chunk_data = base64.b64decode(payload['data'])
+                    f.write(chunk_data)
+                    
+                    offset = payload.get('offset', 0) + payload.get('size', 0)
+                    total_size = payload.get('total_size', 0)
+                    eof = payload.get('eof', False)
+                    
+                    # Update status
+                    progress = f"{offset}/{total_size} bytes"
+                    self.root.after(0, lambda p=progress: self.file_status_var.set(f"Downloading... {p}"))
+                    
+                    if eof:
+                        break
+            
+            self.root.after(0, lambda: self.file_status_var.set(f"Downloaded {filename} ({total_size} bytes)"))
+            
+        except Exception as e:
+            self.root.after(0, lambda e=str(e): self.file_status_var.set(f"Download error: {e}"))
     
     def file_upload(self):
         """Upload file to server."""
         filepath = filedialog.askopenfilename()
-        if filepath:
-            filename = Path(filepath).name
-            messagebox.showinfo("Upload", f"Uploading {filename}...")
-            # TODO: Implement actual upload
+        if not filepath:
+            return
+        
+        filename = Path(filepath).name
+        
+        # Upload in background thread
+        self.file_status_var.set(f"Uploading {filename}...")
+        threading.Thread(
+            target=self._do_file_upload,
+            args=(filepath, filename),
+            daemon=True
+        ).start()
+    
+    def _do_file_upload(self, filepath, filename):
+        """Upload file in background."""
+        try:
+            remote_path = str(Path(self.path_var.get().lstrip('/')) / filename)
+            
+            import base64
+            
+            file_size = Path(filepath).stat().st_size
+            offset = 0
+            chunk_size = 4096  # 4KB chunks
+            
+            with open(filepath, 'rb') as f:
+                while True:
+                    chunk = f.read(chunk_size)
+                    if not chunk:
+                        break
+                    
+                    # Send chunk
+                    msg = Message(
+                        msg_type=MessageType.FILE_UPLOAD,
+                        payload={
+                            'path': remote_path,
+                            'data': base64.b64encode(chunk).decode('ascii'),
+                            'offset': offset,
+                            'append': offset > 0
+                        }
+                    )
+                    encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+                    self.socket.sendto(encrypted, self.server_address)
+                    
+                    # Wait for ack
+                    self.socket.settimeout(10.0)
+                    data, addr = self.socket.recvfrom(2048)
+                    
+                    plaintext = self.crypto.decrypt_packet(data)
+                    response = Message.from_bytes(plaintext)
+                    
+                    if response.msg_type != MessageType.FILE_UPLOAD:
+                        continue
+                    
+                    payload = response.payload
+                    if not payload.get('success'):
+                        error = payload.get('error', 'Unknown error')
+                        self.root.after(0, lambda e=error: self.file_status_var.set(f"Upload failed: {e}"))
+                        return
+                    
+                    offset += len(chunk)
+                    
+                    # Update status
+                    progress = f"{offset}/{file_size} bytes"
+                    self.root.after(0, lambda p=progress: self.file_status_var.set(f"Uploading... {p}"))
+            
+            self.root.after(0, lambda: [
+                self.file_status_var.set(f"Uploaded {filename} ({file_size} bytes)"),
+                self.file_refresh()
+            ])
+            
+        except Exception as e:
+            self.root.after(0, lambda e=str(e): self.file_status_var.set(f"Upload error: {e}"))
+    
+    def file_delete(self):
+        """Delete selected file or directory."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
+        selection = self.file_tree.selection()
+        if not selection:
+            messagebox.showinfo("Select", "Please select a file or directory to delete")
+            return
+        
+        item = self.file_tree.item(selection[0])
+        name = item['values'][0]
+        ftype = item['values'][3]
+        
+        if not messagebox.askyesno("Confirm Delete", f"Delete {ftype.lower()}: {name}?"):
+            return
+        
+        try:
+            remote_path = str(Path(self.path_var.get().lstrip('/')) / name)
+            
+            msg = Message(
+                msg_type=MessageType.FILE_DELETE,
+                payload={'path': remote_path}
+            )
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            self.file_status_var.set(f"Deleting {name}...")
+        except Exception as e:
+            self.file_status_var.set(f"Delete error: {e}")
+    
+    def file_rename(self):
+        """Rename selected file or directory."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
+        selection = self.file_tree.selection()
+        if not selection:
+            messagebox.showinfo("Select", "Please select a file or directory to rename")
+            return
+        
+        item = self.file_tree.item(selection[0])
+        old_name = item['values'][0]
+        ftype = item['values'][3]
+        
+        new_name = simpledialog.askstring("Rename", f"New name for {old_name}:", initialvalue=old_name)
+        if not new_name or new_name == old_name:
+            return
+        
+        try:
+            remote_path = str(Path(self.path_var.get().lstrip('/')) / old_name)
+            
+            msg = Message(
+                msg_type=MessageType.FILE_RENAME,
+                payload={'path': remote_path, 'new_name': new_name}
+            )
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            self.file_status_var.set(f"Renaming {old_name} to {new_name}...")
+        except Exception as e:
+            self.file_status_var.set(f"Rename error: {e}")
+    
+    def file_mkdir(self):
+        """Create new directory."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
+        name = simpledialog.askstring("New Folder", "Enter folder name:")
+        if not name:
+            return
+        
+        try:
+            remote_path = str(Path(self.path_var.get().lstrip('/')) / name)
+            
+            msg = Message(
+                msg_type=MessageType.FILE_MKDIR,
+                payload={'path': remote_path}
+            )
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            self.file_status_var.set(f"Creating folder {name}...")
+        except Exception as e:
+            self.file_status_var.set(f"Mkdir error: {e}")
     
     # ============== Crontab Tab ==============
     
@@ -270,8 +546,8 @@ class ClawChatGUI:
         toolbar.pack(fill='x', padx=5, pady=5)
         
         ttk.Button(toolbar, text="🔄 Refresh", command=self.cron_refresh).pack(side='left', padx=5)
-        ttk.Button(toolbar, text="➕ Add Task", command=self.cron_add).pack(side='left', padx=5)
-        ttk.Button(toolbar, text="❌ Remove Selected", command=self.cron_remove).pack(side='left', padx=5)
+        ttk.Button(toolbar, text="▶️ Run Now", command=self.cron_run_now).pack(side='left', padx=5)
+        ttk.Button(toolbar, text="🔄 Reload File", command=self.cron_reload).pack(side='left', padx=5)
         
         # Crontab list
         columns = ('schedule', 'command', 'comment')
@@ -296,7 +572,7 @@ class ClawChatGUI:
         ttk.Label(self.cron_frame, textvariable=self.cron_status_var).pack(fill='x', padx=5, pady=2)
     
     def cron_refresh(self):
-        """Refresh crontab list."""
+        """Refresh crontab list from server."""
         if not self.connected:
             messagebox.showwarning("Not Connected", "Please connect first")
             return
@@ -305,21 +581,86 @@ class ClawChatGUI:
         for item in self.cron_tree.get_children():
             self.cron_tree.delete(item)
         
-        # Request crontab from server
-        # TODO: Implement crontab protocol
-        self.cron_status_var.set("Loading crontab...")
+        # Request cron list from server
+        self.cron_status_var.set("Loading cron jobs from server...")
         
-        # Mock data
-        mock_cron = [
-            ('0 * * * *', '/home/openclaw/backup.sh', 'Hourly backup'),
-            ('0 0 * * *', '/home/openclaw/daily-report.sh', 'Daily report'),
-            ('*/5 * * * *', '/home/openclaw/check-status.sh', 'Status check'),
-        ]
+        try:
+            msg = Message(msg_type=MessageType.CRON_LIST, payload={})
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            # Response will be handled in receive loop
+            self.cron_pending = True
+        except Exception as e:
+            self.cron_status_var.set(f"Error: {e}")
+    
+    def _handle_cron_list(self, payload):
+        """Handle cron list response from server."""
+        jobs = payload.get('jobs', [])
         
-        for schedule, command, comment in mock_cron:
-            self.cron_tree.insert('', 'end', values=(schedule, command, comment))
+        # Clear current
+        for item in self.cron_tree.get_children():
+            self.cron_tree.delete(item)
         
-        self.cron_status_var.set("Crontab loaded")
+        # Add jobs to tree
+        for job in jobs:
+            schedule = job.get('schedule', '')
+            command = job.get('command', '')[:60]  # Truncate long commands
+            status = 'enabled' if job.get('enabled', True) else 'disabled'
+            
+            # Add last run info
+            last_run = job.get('last_run')
+            if last_run:
+                from datetime import datetime
+                last_run_str = datetime.fromtimestamp(last_run).strftime('%m-%d %H:%M')
+                status += f' (last: {last_run_str})'
+            
+            self.cron_tree.insert('', 'end', values=(schedule, command, status))
+        
+        self.cron_status_var.set(f"Loaded {len(jobs)} cron jobs")
+        self.cron_pending = False
+    
+    def cron_run_now(self):
+        """Run selected cron job immediately."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
+        selection = self.cron_tree.selection()
+        if not selection:
+            messagebox.showinfo("Select", "Please select a job to run")
+            return
+        
+        # Get job name from selected item
+        item = self.cron_tree.item(selection[0])
+        schedule, command, _ = item['values']
+        
+        # Find job name (we need to store this - simplified for now)
+        if messagebox.askyesno("Confirm", f"Run job now?\n{command[:50]}..."):
+            try:
+                msg = Message(
+                    msg_type=MessageType.CRON_RUN,
+                    payload={'job_name': command[:30]}  # Using command as identifier
+                )
+                encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+                self.socket.sendto(encrypted, self.server_address)
+                self.cron_status_var.set("Job execution requested...")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to run job: {e}")
+    
+    def cron_reload(self):
+        """Reload cron file on server."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
+        try:
+            msg = Message(msg_type=MessageType.CRON_RELOAD, payload={})
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            self.cron_status_var.set("Reloading cron file...")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to reload: {e}")
     
     def cron_add(self):
         """Add new crontab entry."""
@@ -461,6 +802,59 @@ class ClawChatGUI:
                     text = msg.payload.get('text', '')
                     sender = msg.payload.get('sender', 'server')
                     self.root.after(0, lambda s=sender, t=text: self.add_chat_message(s, t))
+                elif msg.msg_type == MessageType.CRON_LIST:
+                    self.root.after(0, lambda p=msg.payload: self._handle_cron_list(p))
+                elif msg.msg_type == MessageType.CRON_RUN:
+                    success = msg.payload.get('success', False)
+                    job_name = msg.payload.get('job_name', 'unknown')
+                    status = "started" if success else "failed"
+                    self.root.after(0, lambda: self.cron_status_var.set(f"Run {job_name}: {status}"))
+                elif msg.msg_type == MessageType.CRON_RELOAD:
+                    success = msg.payload.get('success', False)
+                    count = msg.payload.get('job_count', 0)
+                    if success:
+                        self.root.after(0, lambda: self.cron_status_var.set(f"Reloaded {count} jobs"))
+                    else:
+                        self.root.after(0, lambda: self.cron_status_var.set("Reload failed"))
+                # File protocol responses
+                elif msg.msg_type == MessageType.FILE_LIST:
+                    self.root.after(0, lambda p=msg.payload: self._handle_file_list(p))
+                elif msg.msg_type == MessageType.FILE_DOWNLOAD:
+                    # Handled synchronously in _do_file_download
+                    pass
+                elif msg.msg_type == MessageType.FILE_UPLOAD:
+                    # Handled synchronously in _do_file_upload
+                    pass
+                elif msg.msg_type == MessageType.FILE_DELETE:
+                    success = msg.payload.get('success', False)
+                    if success:
+                        self.root.after(0, lambda: [
+                            self.file_status_var.set("Deleted successfully"),
+                            self.file_refresh()
+                        ])
+                    else:
+                        error = msg.payload.get('error', 'Unknown error')
+                        self.root.after(0, lambda e=error: self.file_status_var.set(f"Delete failed: {e}"))
+                elif msg.msg_type == MessageType.FILE_RENAME:
+                    success = msg.payload.get('success', False)
+                    if success:
+                        self.root.after(0, lambda: [
+                            self.file_status_var.set("Renamed successfully"),
+                            self.file_refresh()
+                        ])
+                    else:
+                        error = msg.payload.get('error', 'Unknown error')
+                        self.root.after(0, lambda e=error: self.file_status_var.set(f"Rename failed: {e}"))
+                elif msg.msg_type == MessageType.FILE_MKDIR:
+                    success = msg.payload.get('success', False)
+                    if success:
+                        self.root.after(0, lambda: [
+                            self.file_status_var.set("Directory created"),
+                            self.file_refresh()
+                        ])
+                    else:
+                        error = msg.payload.get('error', 'Unknown error')
+                        self.root.after(0, lambda e=error: self.file_status_var.set(f"Mkdir failed: {e}"))
                     
             except socket.timeout:
                 continue

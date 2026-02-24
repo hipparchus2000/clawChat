@@ -1,0 +1,45 @@
+{
+  "jobs": [
+    {
+      "name": "Daily Summary",
+      "schedule": "0 9 * * *",
+      "command": "Review yesterday's git commits and provide a summary of changes",
+      "enabled": true,
+      "context": "Focus on security implications and architectural decisions.",
+      "last_run": null,
+      "last_result": null,
+      "run_count": 0
+    },
+    {
+      "name": "Security Check",
+      "schedule": "0 */6 * * *",
+      "command": "Review recent code for security vulnerabilities",
+      "enabled": true,
+      "context": "Check for:\n- Hardcoded secrets\n- Input validation issues\n- Insecure crypto usage",
+      "last_run": null,
+      "last_result": null,
+      "run_count": 0
+    },
+    {
+      "name": "Weekly Architecture Review",
+      "schedule": "0 10 * * 1",
+      "command": "Analyze codebase architecture and suggest improvements",
+      "enabled": false,
+      "context": "Currently disabled - enable when ready for refactoring phase.",
+      "last_run": null,
+      "last_result": null,
+      "run_count": 0
+    },
+    {
+      "name": "Daily Memory Update",
+      "schedule": "0 23 * * *",
+      "command": "Review today's conversation and extract key facts to add to MEMORY.md",
+      "enabled": true,
+      "context": "Look for:\n- New architecture decisions\n- Solutions to problems\n- Updated preferences\n- Important technical details",
+      "last_run": null,
+      "last_result": null,
+      "run_count": 0
+    }
+  ],
+  "last_save": 1771967611.5893533
+}

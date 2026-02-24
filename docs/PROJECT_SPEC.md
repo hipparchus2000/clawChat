@@ -1,4 +1,14 @@
-# ClawChat - Secure PWA Chat & File Management System
+# ⚠️ ARCHIVED - v1.0 Project Specification
+
+> **This specification is for the archived WebSocket/Mega.nz implementation (v1.0).**
+>
+> **For the current implementation, see:**
+> - [`../udp_hole_punching/README.md`](../udp_hole_punching/README.md)
+> - [`../udp_hole_punching/FILE_PROTOCOL.md`](../udp_hole_punching/FILE_PROTOCOL.md)
+
+---
+
+# ClawChat - Secure PWA Chat & File Management System (v1.0 - ARCHIVED)
 
 ## Project Overview
 A secure, single-page web application (PWA) that communicates with OpenClaw via a rotating-port Python service. Features chat messaging and full file management capabilities for the projects folder.

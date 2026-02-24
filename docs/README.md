@@ -1,4 +1,20 @@
-# ClawChat - Secure PWA Chat & File Management System
+# ⚠️ ARCHIVED - v1.0 Documentation
+
+> **This documentation is for the archived WebSocket/Mega.nz implementation (v1.0).**
+>
+> **For the current UDP hole punching implementation (v2.0), see:**
+> - [`../udp_hole_punching/README.md`](../udp_hole_punching/README.md) - Current implementation
+> - [`../README.md`](../README.md) - Project overview
+>
+> **Migration Notes:**
+> - Mega.nz integration was removed (paywall issues)
+> - WebSocket replaced with UDP hole punching
+> - Browser PWA replaced with Tkinter GUI client
+> - File-based security exchange replaces cloud config storage
+
+---
+
+# ClawChat - Secure PWA Chat & File Management System (v1.0 - ARCHIVED)
 
 ![GitHub](https://img.shields.io/github/license/hipparchus2000/clawChat)
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)

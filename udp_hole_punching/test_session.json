@@ -1,0 +1,11 @@
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a test assistant.",
+      "timestamp": 1771966356.8922102
+    }
+  ],
+  "system_prompt": "You are a test assistant.",
+  "last_saved": 1771966356.892225
+}
