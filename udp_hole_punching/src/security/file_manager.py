@@ -160,9 +160,8 @@ class SecurityFileManager:
         plaintext = security_data.to_json().encode('utf-8')
         encrypted = self.crypto.encrypt_file(plaintext, self.bootstrap_key)
         
-        # Create filename with timestamp
-        timestamp_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        filename = f"clawchat-{timestamp_str}.sec"
+        # Use fixed filename - always overwrite the same file
+        filename = "clawchat-current.sec"
         filepath = os.path.join(self.security_directory, filename)
         
         # Write file with restricted permissions
@@ -197,16 +196,17 @@ class SecurityFileManager:
     
     def list_security_files(self) -> List[str]:
         """
-        List all security files in the directory (server-side).
+        List security files in the directory (server-side).
         
         Returns:
-            List of file paths
+            List of file paths (currently just the fixed filename)
         """
         if not self.security_directory:
             raise RuntimeError("Security directory not configured")
         
-        pattern = os.path.join(self.security_directory, "clawchat-*.sec")
-        return sorted(glob.glob(pattern))
+        # Use fixed filename instead of pattern
+        filepath = os.path.join(self.security_directory, "clawchat-current.sec")
+        return [filepath] if os.path.exists(filepath) else []
     
     def get_latest_security_file(self) -> Optional[str]:
         """
