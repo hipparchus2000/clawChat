@@ -206,6 +206,15 @@ class ClawChatLLMServer:
         try:
             msg = Message.from_bytes(data)
             
+            # Track peer address for cron callbacks
+            if not self.peer_address:
+                self.peer_address = addr
+                print(f"[Server] Client connected: {addr}")
+                
+                # Notify file generator to stop auto-regeneration
+                if self.file_generator:
+                    self.file_generator.mark_client_connected()
+            
             if msg.msg_type == MessageType.CHAT:
                 self._handle_chat(msg, addr)
             elif msg.msg_type == MessageType.FILE_LIST:
@@ -453,188 +462,6 @@ class ClawChatLLMServer:
             counter += 1
         
         return name
-    
-    def _handle_packet(self, data, addr):
-        try:
-            plaintext = self.crypto.decrypt_packet(data)
-        except:
-            return
-        
-        msg = Message.from_bytes(plaintext)
-        self.messages_received += 1
-        
-        if not self.peer_address:
-            self.peer_address = addr
-            print(f"[Server] Client connected: {addr}")
-            
-            # Notify file generator to stop auto-regeneration
-            if self.file_generator:
-                self.file_generator.mark_client_connected()
-        
-        if msg.msg_type == MessageType.CHAT:
-            self._handle_chat(msg, addr)
-        elif msg.msg_type == MessageType.KEEPALIVE:
-            self._send_message(MessageType.KEEPALIVE, {'pong': True})
-        # Handle cron API requests
-        elif msg.msg_type == MessageType.CRON_LIST:
-            self._handle_cron_list(msg, addr)
-        elif msg.msg_type == MessageType.CRON_RUN:
-            self._handle_cron_run(msg, addr)
-        elif msg.msg_type == MessageType.CRON_RELOAD:
-            self._handle_cron_reload(msg, addr)
-        elif msg.msg_type == MessageType.CRON_ADD:
-            self._handle_cron_add(msg, addr)
-        elif msg.msg_type == MessageType.CRON_REMOVE:
-            self._handle_cron_remove(msg, addr)
-        # Handle file protocol requests
-        elif msg.msg_type == MessageType.FILE_LIST:
-            self._handle_file_list(msg, addr)
-        elif msg.msg_type == MessageType.FILE_DOWNLOAD:
-            self._handle_file_download(msg, addr)
-        elif msg.msg_type == MessageType.FILE_UPLOAD:
-            self._handle_file_upload(msg, addr)
-        elif msg.msg_type == MessageType.FILE_DELETE:
-            self._handle_file_delete(msg, addr)
-        elif msg.msg_type == MessageType.FILE_RENAME:
-            self._handle_file_rename(msg, addr)
-        elif msg.msg_type == MessageType.FILE_MKDIR:
-            self._handle_file_mkdir(msg, addr)
-    
-    def _handle_chat(self, msg, addr):
-        text = msg.payload.get('text', '')
-        sender = msg.payload.get('sender', 'unknown')
-        
-        print(f"[Chat] {sender}: {text}")
-        
-        # Send to LLM
-        self.llm_bridge.write(text)
-        
-        # Wait for response
-        max_wait = 60
-        start = time.time()
-        
-        while time.time() - start < max_wait:
-            response = self.llm_bridge.read(timeout=0.5)
-            if response:
-                self._send_message(MessageType.CHAT, {
-                    'text': response,
-                    'sender': 'assistant'
-                })
-                print(f"[Chat] Assistant: {response[:80]}...")
-                return
-            
-            if not self.llm_bridge.is_processing():
-                break
-        
-        self._send_message(MessageType.CHAT, {
-            'text': '[No response from AI]',
-            'sender': 'system'
-        })
-    
-    def _handle_cron_list(self, msg, addr):
-        """Handle request for cron job list."""
-        if not self.cron_scheduler:
-            return
-        
-        jobs = self.cron_scheduler.get_jobs()
-        self._send_message(MessageType.CRON_LIST, {'jobs': jobs})
-        print(f"[Cron API] Sent job list ({len(jobs)} jobs)")
-    
-    def _handle_cron_run(self, msg, addr):
-        """Handle request to run a job immediately."""
-        if not self.cron_scheduler:
-            return
-        
-        job_name = msg.payload.get('job_name')
-        success = self.cron_scheduler.run_job_now(job_name)
-        
-        self._send_message(MessageType.CRON_RUN, {
-            'job_name': job_name,
-            'success': success
-        })
-        print(f"[Cron API] Manual run: {job_name} ({'ok' if success else 'not found'})")
-    
-    def _handle_cron_reload(self, msg, addr):
-        """Handle request to reload cron file."""
-        if not self.cron_scheduler:
-            return
-        
-        self.cron_scheduler.reload()
-        jobs = self.cron_scheduler.get_jobs()
-        
-        self._send_message(MessageType.CRON_RELOAD, {
-            'success': True,
-            'job_count': len(jobs)
-        })
-        print(f"[Cron API] Reloaded ({len(jobs)} jobs)")
-    
-    # ============== File Protocol Handlers ==============
-    
-    def _handle_file_list(self, msg, addr):
-        """Handle file list request."""
-        path = msg.payload.get('path', '.')
-        result = self.file_handler.handle_list(path)
-        self._send_message(MessageType.FILE_LIST, result)
-        if result.get('success'):
-            print(f"[File API] Listed: {path} ({result.get('count', 0)} items)")
-    
-    def _handle_file_download(self, msg, addr):
-        """Handle file download request."""
-        path = msg.payload.get('path', '')
-        offset = msg.payload.get('offset', 0)
-        result = self.file_handler.handle_download(path, offset)
-        self._send_message(MessageType.FILE_DOWNLOAD, result)
-        if result.get('success'):
-            print(f"[File API] Download: {path} ({result.get('size', 0)} bytes)")
-    
-    def _handle_file_upload(self, msg, addr):
-        """Handle file upload request."""
-        path = msg.payload.get('path', '')
-        data = msg.payload.get('data', '')
-        offset = msg.payload.get('offset', 0)
-        append = msg.payload.get('append', False)
-        result = self.file_handler.handle_upload(path, data, offset, append)
-        self._send_message(MessageType.FILE_UPLOAD, result)
-        if result.get('success'):
-            print(f"[File API] Upload: {path} ({result.get('bytes_written', 0)} bytes)")
-    
-    def _handle_file_delete(self, msg, addr):
-        """Handle file delete request."""
-        path = msg.payload.get('path', '')
-        result = self.file_handler.handle_delete(path)
-        self._send_message(MessageType.FILE_DELETE, result)
-        status = 'deleted' if result.get('success') else 'failed'
-        print(f"[File API] Delete: {path} ({status})")
-    
-    def _handle_file_rename(self, msg, addr):
-        """Handle file rename request."""
-        path = msg.payload.get('path', '')
-        new_name = msg.payload.get('new_name', '')
-        result = self.file_handler.handle_rename(path, new_name)
-        self._send_message(MessageType.FILE_RENAME, result)
-        status = 'renamed' if result.get('success') else 'failed'
-        print(f"[File API] Rename: {path} -> {new_name} ({status})")
-    
-    def _handle_file_mkdir(self, msg, addr):
-        """Handle mkdir request."""
-        path = msg.payload.get('path', '')
-        result = self.file_handler.handle_mkdir(path)
-        self._send_message(MessageType.FILE_MKDIR, result)
-        status = 'created' if result.get('success') else 'failed'
-        print(f"[File API] Mkdir: {path} ({status})")
-    
-    def _send_message(self, msg_type, payload):
-        if not self.peer_address:
-            return
-        
-        msg = Message(msg_type=msg_type, payload=payload)
-        encrypted = self.crypto.encrypt_packet(msg.to_bytes())
-        
-        try:
-            self.socket.sendto(encrypted, self.peer_address)
-            self.messages_sent += 1
-        except Exception as e:
-            print(f"[Server] Send error: {e}")
     
     def stop(self):
         self.running = False
