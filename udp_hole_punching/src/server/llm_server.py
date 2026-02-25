@@ -22,7 +22,6 @@ from protocol.messages import Message, MessageType
 from llm_bridge import LLMBridge, LLMConfig
 from cron_scheduler import CronScheduler
 from server.file_protocol_handler import FileProtocolHandler
-from security.key_rotation import KeyRotator
 
 
 class ClawChatLLMServer:
@@ -77,9 +76,6 @@ class ClawChatLLMServer:
         
         # Security file generator for auto-regeneration
         self.file_generator = None
-        
-        # Key rotation
-        self.key_rotator = None
     
     def _select_random_port(self) -> int:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -155,7 +151,7 @@ class ClawChatLLMServer:
             filepath = self.generate_initial_security_file()
             print(f"[Server] Security file: {filepath}")
         
-        # Setup crypto
+        # Setup crypto (for initial security only - actual encryption is handled by hole punching server)
         self.connection_id = f"{self.server_id}-{int(time.time())}"
         self.crypto = CryptoManager()
         keys = derive_session_keys(
@@ -164,13 +160,6 @@ class ClawChatLLMServer:
             int(time.time())
         )
         self.crypto.set_session_keys(keys)
-        
-        # Setup key rotation (1 hour interval)
-        self.key_rotator = KeyRotator(
-            self.shared_secret,
-            self.connection_id,
-            on_rotation=self._on_key_rotation
-        )
         
         # Create socket (for hole punching server only - localhost)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -203,12 +192,6 @@ class ClawChatLLMServer:
             self.stop()
     
     def _process_loop(self):
-        # Check for key rotation
-        if self.key_rotator and self.key_rotator.check_rotation_needed():
-            print("[Server] Key rotation due")
-            # No key rotation for internal relay - hole punching server handles it
-            pass
-        
         # Receive message from hole punching server
         try:
             data, addr = self.socket.recvfrom(8192)
@@ -503,9 +486,6 @@ class ClawChatLLMServer:
             self._handle_cron_add(msg, addr)
         elif msg.msg_type == MessageType.CRON_REMOVE:
             self._handle_cron_remove(msg, addr)
-        # Handle key rotation
-        elif msg.msg_type == MessageType.KEY_ROTATION:
-            self._handle_key_rotation(msg, addr)
         # Handle file protocol requests
         elif msg.msg_type == MessageType.FILE_LIST:
             self._handle_file_list(msg, addr)
