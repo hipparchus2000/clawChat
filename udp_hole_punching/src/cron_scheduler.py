@@ -150,6 +150,9 @@ class CronScheduler:
         self._scheduler_thread: Optional[threading.Thread] = None
         self._watcher_thread: Optional[threading.Thread] = None
         
+        # Thread safety lock for file operations
+        self._file_lock = threading.Lock()
+        
         # Callbacks
         self.on_job_execute: Optional[Callable[[CronJob], None]] = None
         self.on_job_complete: Optional[Callable[[CronJob, str], None]] = None
@@ -455,6 +458,190 @@ Result: {result[:500]}{'...' if len(result) > 500 else ''}
         self._file_mtime = None
         self._file_hash = None
         self._check_and_reload()
+    
+    def _validate_schedule(self, schedule: str) -> bool:
+        """Validate cron schedule format."""
+        schedule = schedule.strip()
+        
+        # Handle special schedules
+        if schedule in ('@reboot', '@hourly', '@daily', '@weekly'):
+            return True
+        
+        # Standard 5-field cron format
+        parts = schedule.split()
+        if len(parts) != 5:
+            return False
+        
+        # Validate each field
+        for part in parts:
+            if not self._validate_schedule_field(part):
+                return False
+        
+        return True
+    
+    def _validate_schedule_field(self, field: str) -> bool:
+        """Validate a single cron field."""
+        field = field.strip()
+        
+        # Wildcard
+        if field == '*':
+            return True
+        
+        # Specific number
+        if field.isdigit():
+            return True
+        
+        # List (e.g., "1,2,3")
+        if ',' in field:
+            return all(x.strip().isdigit() for x in field.split(','))
+        
+        # Range (e.g., "1-5")
+        if '-' in field:
+            parts = field.split('-')
+            return len(parts) == 2 and all(p.strip().isdigit() for p in parts)
+        
+        # Step (e.g., */5)
+        if field.startswith('*/'):
+            return field[2:].isdigit()
+        
+        return False
+    
+    def add_job(self, name: str, schedule: str, command: str, 
+                comment: str = "", enabled: bool = True) -> bool:
+        """Add a new job to the cron file with validation."""
+        # Validate schedule first
+        if not self._validate_schedule(schedule):
+            print(f"[Cron] Invalid schedule format: {schedule}")
+            return False
+        
+        with self._file_lock:
+            try:
+                # Check if job with same name exists
+                for job in self.jobs:
+                    if job.name == name:
+                        return False
+                
+                # Create new job
+                new_job = CronJob(
+                    name=name,
+                    schedule=schedule,
+                    command=command,
+                    enabled=enabled,
+                    context=comment
+                )
+                self.jobs.append(new_job)
+                
+                # Append to CRON.md
+                self._append_job_to_file(new_job)
+                self._save_state()
+                
+                print(f"[Cron] Added job: {name}")
+                return True
+            except Exception as e:
+                print(f"[Cron] Failed to add job: {e}")
+                return False
+    
+    def remove_job(self, name: str) -> bool:
+        """Remove a job from the cron file."""
+        with self._file_lock:
+            try:
+                # Find and remove job
+                for i, job in enumerate(self.jobs):
+                    if job.name == name or job.command == name:
+                        removed = self.jobs.pop(i)
+                        
+                        # Rewrite CRON.md without this job
+                        self._rewrite_cron_file()
+                        self._save_state()
+                        
+                        print(f"[Cron] Removed job: {removed.name}")
+                        return True
+                
+                return False
+            except Exception as e:
+                print(f"[Cron] Failed to remove job: {e}")
+                return False
+    
+    def _append_job_to_file(self, job: CronJob):
+        """Append a job to the CRON.md file."""
+        entry = f"""
+## {job.name}
+
+**Schedule**: {job.schedule}
+**Command**: {job.command}
+**Enabled**: {'true' if job.enabled else 'false'}
+
+{job.context}
+
+---
+"""
+        with open(self.cron_file, 'a', encoding='utf-8') as f:
+            f.write(entry)
+        
+        # Update hash
+        self._file_hash = self._get_file_hash()
+        self._file_mtime = self.cron_file.stat().st_mtime
+    
+    def _rewrite_cron_file(self):
+        """Rewrite CRON.md preserving non-job documentation."""
+        # Read existing content to preserve documentation
+        existing_content = ""
+        if self.cron_file.exists():
+            existing_content = self.cron_file.read_text(encoding='utf-8')
+        
+        # Extract header (everything before first ## Job Name)
+        header_match = re.search(r'^(.*?)(?=\n##\s+[^\n]+\n\*\*Schedule\*\*:|$)', 
+                                 existing_content, re.DOTALL)
+        if header_match:
+            header = header_match.group(1).strip()
+        else:
+            # Default header if no valid header found
+            header = """# CRON - Scheduled Tasks
+
+This file defines scheduled tasks that run through the LLM.
+
+**Format**: Each job needs:
+- `## Job Name` - The heading
+- `**Schedule**:` - Cron expression
+- `**Command**:` - What to ask the LLM to do
+- `**Enabled**:` - true/false
+- Context (optional)
+
+---"""
+        
+        # Build new content preserving header
+        lines = [header, ""]
+        
+        for job in self.jobs:
+            entry = f"""## {job.name}
+
+**Schedule**: {job.schedule}
+**Command**: {job.command}
+**Enabled**: {'true' if job.enabled else 'false'}
+
+{job.context}
+
+---
+
+"""
+            lines.append(entry)
+        
+        # Write atomically (temp file then rename)
+        temp_file = self.cron_file.with_suffix('.tmp')
+        try:
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines))
+            # Atomic rename
+            temp_file.replace(self.cron_file)
+        except Exception:
+            # Clean up temp file on failure
+            if temp_file.exists():
+                temp_file.unlink()
+            raise
+        
+        # Update hash
+        self._file_hash = self._get_file_hash()
+        self._file_mtime = self.cron_file.stat().st_mtime
 
 
 # Example usage

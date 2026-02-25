@@ -9,17 +9,23 @@ A secure peer-to-peer communication system featuring UDP hole punching, end-to-e
 
 **The active implementation is in [`udp_hole_punching/`](udp_hole_punching/)** - a Python-based UDP hole punching system with Tkinter GUI client.
 
-### What's New in v2.0
+### What's New in v2.1
+
+- 🤖 **LLM Bridge** - DeepSeek/OpenAI/Anthropic integration
+- 📝 **Context System** - OpenClaw-style agentic loop (SOUL → AGENTS → USER → MEMORY)
+- ⏰ **Cron Scheduler** - Automated AI task execution via CRON.md
+- 📁 **File Manager** - Full remote file operations (list, download, upload, delete, rename)
+- 🖥️ **GUI Client** - Three-tab interface (Chat, Files, Crontab)
+- 🔒 **Fixed Security File** - Single `clawchat-current.sec` filename
+- ⏱️ **Shorter Validity** - 11 minute validity with 10 minute auto-regeneration
+
+### v2.0 Features
 
 - 🔒 **File-Based Security Exchange** - No cloud dependency (replaced Mega.nz)
 - 🕳️ **UDP Hole Punching** - Direct P2P connections through NAT
 - 🔐 **AES-256-GCM Encryption** - End-to-end encryption
 - 🔄 **In-Band Key Rotation** - Automatic hourly key rotation
 - 🚨 **Compromised Protocol** - Emergency key destruction
-- 🤖 **LLM Bridge** - DeepSeek/OpenAI/Anthropic integration
-- 📝 **Context System** - OpenClaw-style agentic loop
-- ⏰ **Cron Scheduler** - Automated AI task execution
-- 📁 **File Manager** - Full remote file operations (list, download, upload, delete, rename)
 
 ## 📁 Repository Structure
 
@@ -101,10 +107,11 @@ Select the `.sec` security file via the file browser to connect.
 ## 🔐 Security Model
 
 - **Bootstrap Key**: Protect the key used to encrypt security files (from `.env`)
-- **Security Files**: `.sec` files contain ephemeral connection credentials
+- **Security Files**: `clawchat-current.sec` contains ephemeral connection credentials
 - **File Transfer**: Transfer `.sec` files securely (USB, encrypted message)
-- **Validity**: Security files expire after 1 hour (configurable)
-- **Key Rotation**: Keys rotate automatically every hour
+- **Validity**: Security files expire after 11 minutes
+- **Auto-Regeneration**: New file generated every 10 minutes until client connects
+- **Key Rotation**: Session keys rotate automatically every hour after connection
 - **Compromised Protocol**: Emergency key destruction if suspected breach
 
 ## 🛠️ Development
@@ -114,10 +121,17 @@ Select the `.sec` security file via the file browser to connect.
 cd udp_hole_punching
 pip install -r requirements.txt
 
-# Run LLM server (with AI)
+# Configure environment
+copy .env.example .env
+# Edit .env and add your API keys
+
+# Run LLM server (with AI - uses CLAWCHAT_LLM_PROVIDER from .env)
+python run_llm_server.py
+
+# Or specify provider manually
 python run_llm_server.py --provider deepseek
 
-# Run standard server (echo)
+# Run standard server (echo only)
 python run_server.py --ip 127.0.0.1 --port 55555
 
 # Run GUI client
@@ -127,7 +141,8 @@ python run_gui_client.py
 ## 📦 Project History
 
 - **v1.0**: WebSocket-based chat with Mega.nz config storage
-- **v2.0**: UDP hole punching, file-based security, LLM integration
+- **v2.0**: UDP hole punching, file-based security exchange
+- **v2.1**: LLM Bridge, Context System, Cron Scheduler, File Manager Protocol
 
 See [`docs/README.md`](docs/README.md) for archived v1.0 documentation.
 

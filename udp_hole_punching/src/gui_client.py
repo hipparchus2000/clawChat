@@ -16,10 +16,13 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 
+import secrets  # noqa: F401 - Used in _finish_compromised_protocol
+
 from security.encryption import CryptoManager, derive_session_keys
 from security.file_manager import SecurityFileManager, SecurityFile
 from networking.udp_hole_punch import UDPHolePuncher
 from protocol.messages import Message, MessageType
+from protocol.compromised import CompromisedProtocolHandler
 
 
 class ClawChatGUI:
@@ -39,6 +42,16 @@ class ClawChatGUI:
         self.receive_thread = None
         self.running = False
         self.cron_pending = False
+        
+        # Security components
+        self.compromised_handler = None
+        self._compromised_triggered = False  # Rate limiting flag
+        self._compromised_waiting_ack = False  # Waiting for ACK state
+        self._compromised_timer = None  # Timeout timer
+        
+        # Pending cron operations (waiting for server confirmation)
+        self._cron_pending_adds: dict = {}  # command -> (schedule, comment, tree_item_id)
+        self._cron_pending_removes: set = set()  # Set of commands being removed
         
         # Create notebook (tabs)
         self.notebook = ttk.Notebook(root)
@@ -663,7 +676,7 @@ class ClawChatGUI:
             messagebox.showerror("Error", f"Failed to reload: {e}")
     
     def cron_add(self):
-        """Add new crontab entry."""
+        """Add new crontab entry - waits for server confirmation."""
         if not self.connected:
             messagebox.showwarning("Not Connected", "Please connect first")
             return
@@ -679,14 +692,38 @@ class ClawChatGUI:
         
         comment = simpledialog.askstring("Comment", "Enter comment (optional):") or ""
         
-        # Add to list
-        self.cron_tree.insert('', 'end', values=(schedule, command, comment))
+        # Check if already pending
+        if command in self._cron_pending_adds:
+            messagebox.showinfo("Pending", "This command is already being added.")
+            return
         
-        # TODO: Send to server
-        messagebox.showinfo("Added", "Crontab entry added (not yet sent to server)")
+        # Send to server
+        try:
+            msg = Message(
+                msg_type=MessageType.CRON_ADD,
+                payload={
+                    'schedule': schedule,
+                    'command': command,
+                    'comment': comment,
+                    'enabled': True
+                }
+            )
+            encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+            self.socket.sendto(encrypted, self.server_address)
+            
+            # Store as pending (don't add to tree yet - wait for server)
+            self._cron_pending_adds[command] = (schedule, comment, None)
+            self.cron_status_var.set(f"Adding job: {command[:30]}... (waiting for server)")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add job: {e}")
     
     def cron_remove(self):
-        """Remove selected crontab entry."""
+        """Remove selected crontab entry - waits for server confirmation."""
+        if not self.connected:
+            messagebox.showwarning("Not Connected", "Please connect first")
+            return
+        
         selection = self.cron_tree.selection()
         if not selection:
             messagebox.showinfo("Select", "Please select an entry to remove")
@@ -694,8 +731,33 @@ class ClawChatGUI:
         
         if messagebox.askyesno("Confirm", "Remove selected crontab entry?"):
             for item in selection:
-                self.cron_tree.delete(item)
-            # TODO: Send removal to server
+                # Get job info
+                item_values = self.cron_tree.item(item)['values']
+                schedule = item_values[0] if len(item_values) > 0 else ''
+                command = item_values[1] if len(item_values) > 1 else ''
+                
+                # Check if already pending
+                if command in self._cron_pending_removes:
+                    continue
+                
+                # Send remove request to server
+                try:
+                    msg = Message(
+                        msg_type=MessageType.CRON_REMOVE,
+                        payload={
+                            'schedule': schedule,
+                            'command': command
+                        }
+                    )
+                    encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+                    self.socket.sendto(encrypted, self.server_address)
+                    
+                    # Mark as pending (don't remove from tree yet - wait for server)
+                    self._cron_pending_removes.add(command)
+                    self.cron_status_var.set(f"Removing job: {command[:30]}... (waiting for server)")
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Failed to remove job: {e}")
     
     # ============== Connection ==============
     
@@ -816,6 +878,62 @@ class ClawChatGUI:
                         self.root.after(0, lambda: self.cron_status_var.set(f"Reloaded {count} jobs"))
                     else:
                         self.root.after(0, lambda: self.cron_status_var.set("Reload failed"))
+                elif msg.msg_type == MessageType.CRON_ADD:
+                    success = msg.payload.get('success', False)
+                    job_name = msg.payload.get('job_name', 'unknown')
+                    # Find and update pending add
+                    for cmd, (sched, cmt, _) in list(self._cron_pending_adds.items()):
+                        if job_name in cmd or cmd in job_name:
+                            if success:
+                                # Add to tree now that server confirmed
+                                self.root.after(0, lambda s=sched, c=cmd, cm=cmt: [
+                                    self.cron_tree.insert('', 'end', values=(s, c, cm)),
+                                    self.cron_status_var.set(f"Added job: {job_name}")
+                                ])
+                            else:
+                                error = msg.payload.get('error', 'Unknown error')
+                                self.root.after(0, lambda e=error: [
+                                    self.cron_status_var.set(f"Add failed: {e}"),
+                                    messagebox.showerror("Add Failed", f"Server error: {e}")
+                                ])
+                            del self._cron_pending_adds[cmd]
+                            break
+                elif msg.msg_type == MessageType.CRON_REMOVE:
+                    success = msg.payload.get('success', False)
+                    job_name = msg.payload.get('job_name', 'unknown')
+                    # Find and update pending remove
+                    for cmd in list(self._cron_pending_removes):
+                        if job_name in cmd or cmd in job_name:
+                            if success:
+                                # Remove from tree now that server confirmed
+                                def do_remove():
+                                    for tree_item in self.cron_tree.get_children():
+                                        values = self.cron_tree.item(tree_item)['values']
+                                        if len(values) > 1 and values[1] == cmd:
+                                            self.cron_tree.delete(tree_item)
+                                            break
+                                    self.cron_status_var.set(f"Removed job: {job_name}")
+                                self.root.after(0, do_remove)
+                            else:
+                                error = msg.payload.get('error', 'Unknown error')
+                                self.root.after(0, lambda e=error: [
+                                    self.cron_status_var.set(f"Remove failed: {e}"),
+                                    messagebox.showerror("Remove Failed", f"Server error: {e}")
+                                ])
+                            self._cron_pending_removes.discard(cmd)
+                            break
+                elif msg.msg_type == MessageType.CRON_RESULT:
+                    # Job execution result - display in chat
+                    job_name = msg.payload.get('job_name', 'unknown')
+                    result = msg.payload.get('result', '')
+                    success = msg.payload.get('success', False)
+                    status_icon = "✅" if success else "❌"
+                    # Truncate result if too long
+                    result_display = result[:500] + ("..." if len(result) > 500 else "")
+                    self.root.after(0, lambda j=job_name, r=result_display, s=status_icon: [
+                        self.add_chat_message("Cron", f"{s} Job '{j}' completed:"),
+                        self.add_chat_message("Cron", r)
+                    ])
                 # File protocol responses
                 elif msg.msg_type == MessageType.FILE_LIST:
                     self.root.after(0, lambda p=msg.payload: self._handle_file_list(p))
@@ -855,10 +973,16 @@ class ClawChatGUI:
                     else:
                         error = msg.payload.get('error', 'Unknown error')
                         self.root.after(0, lambda e=error: self.file_status_var.set(f"Mkdir failed: {e}"))
+                
+                elif msg.msg_type == MessageType.COMPROMISED_ACK:
+                    # Server acknowledged compromised protocol
+                    self.root.after(0, lambda p=msg.payload: self._handle_compromised_ack(p))
                     
             except socket.timeout:
                 continue
-            except Exception:
+            except Exception as e:
+                # Log error for debugging instead of silent break
+                print(f"[GUI Client] Receive loop error: {e}")
                 break
     
     def disconnect(self):
@@ -876,16 +1000,118 @@ class ClawChatGUI:
         self.add_chat_message("System", "Disconnected")
     
     def trigger_compromised(self):
-        """Trigger compromised protocol."""
+        """Trigger compromised protocol with proper HMAC signature and ACK waiting."""
         if not self.connected:
             messagebox.showwarning("Not Connected", "Please connect first")
             return
         
-        if messagebox.askyesno("⚠️ WARNING", "This will destroy all keys on both sides!\n\nType 'YES' to confirm:", icon='warning'):
-            # Send compromised signal
-            # TODO: Implement
-            messagebox.showinfo("Compromised", "Compromised protocol triggered")
-            self.disconnect()
+        # Rate limiting: prevent multiple triggers
+        if self._compromised_triggered:
+            messagebox.showinfo("Already Triggered", 
+                               "Compromised protocol is already in progress.")
+            return
+        
+        if messagebox.askyesno("⚠️ WARNING", 
+                               "This will destroy all keys on both sides!\n\n"
+                               "Type 'YES' to confirm:", 
+                               icon='warning'):
+            try:
+                # Initialize compromised handler if not already done
+                if not self.compromised_handler:
+                    # Get MAC key from current session keys
+                    if not self.crypto or not self.crypto._session_keys:
+                        raise ValueError("No session keys available")
+                    mac_key = self.crypto._session_keys.get('mac_key', b'')
+                    self.compromised_handler = CompromisedProtocolHandler(
+                        is_server=False,
+                        connection_id=f"client-{id(self)}",
+                        mac_key=mac_key
+                    )
+                
+                # Create properly signed compromised signal
+                signal = self.compromised_handler.create_compromised_signal(
+                    reason='user_initiated'
+                )
+                
+                msg = Message(
+                    msg_type=MessageType.COMPROMISED,
+                    payload=signal
+                )
+                encrypted = self.crypto.encrypt_packet(msg.to_bytes())
+                self.socket.sendto(encrypted, self.server_address)
+                
+                self._compromised_triggered = True
+                self._compromised_waiting_ack = True
+                self.add_chat_message("System", 
+                                     "🔒 Compromised signal sent. Waiting for server ACK...")
+                
+                # Set timeout for ACK (5 seconds)
+                self._compromised_timer = self.root.after(5000, 
+                    self._compromised_timeout)
+                
+            except Exception as e:
+                messagebox.showerror("Error", 
+                                    f"Failed to send compromised signal: {e}")
+                self._reset_compromised_state()
+                self.disconnect()
+    
+    def _handle_compromised_ack(self, payload):
+        """Handle compromised ACK from server."""
+        if not self._compromised_waiting_ack:
+            return
+        
+        # Cancel timeout timer
+        if self._compromised_timer:
+            self.root.after_cancel(self._compromised_timer)
+            self._compromised_timer = None
+        
+        new_file_ready = payload.get('new_file_ready', False)
+        action = payload.get('action', 'keys_deleted')
+        
+        self.add_chat_message("System", 
+                             f"🔒 Server confirmed: {action}. "
+                             f"New file ready: {new_file_ready}")
+        
+        # Now safe to destroy keys
+        self._destroy_keys_and_disconnect()
+    
+    def _compromised_timeout(self):
+        """Handle timeout waiting for compromised ACK."""
+        self._compromised_timer = None
+        self.add_chat_message("System", 
+                             "⚠️ No ACK received from server. Destroying keys anyway...")
+        self._destroy_keys_and_disconnect()
+    
+    def _destroy_keys_and_disconnect(self):
+        """Destroy keys and disconnect."""
+        # Destroy local keys
+        if self.crypto:
+            fake_keys = {
+                'encryption_key': secrets.token_bytes(32),
+                'mac_key': secrets.token_bytes(32),
+                'iv_key': secrets.token_bytes(32),
+                'next_key_seed': secrets.token_bytes(32)
+            }
+            self.crypto.set_session_keys(fake_keys)
+            self.crypto = None
+        
+        self._reset_compromised_state()
+        
+        self.add_chat_message("System", "🔒 All keys destroyed. Connection terminated.")
+        self.add_chat_message("System", "📄 New security file required to reconnect.")
+        messagebox.showinfo("Compromised Protocol", 
+                           "All keys have been destroyed on both sides.\n\n"
+                           "The server will generate a new security file.\n"
+                           "Transfer it securely to reconnect.")
+        self.disconnect()
+    
+    def _reset_compromised_state(self):
+        """Reset compromised protocol state."""
+        self._compromised_triggered = False
+        self._compromised_waiting_ack = False
+        if self._compromised_timer:
+            self.root.after_cancel(self._compromised_timer)
+            self._compromised_timer = None
     
     def show_about(self):
         """Show about dialog."""

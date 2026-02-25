@@ -38,6 +38,9 @@ class MessageType(IntEnum):
     CRON_LIST = 0x40        # Request/response for cron job list
     CRON_RUN = 0x41         # Request to run job immediately
     CRON_RELOAD = 0x42      # Request to reload cron file
+    CRON_ADD = 0x43         # Request to add a new cron job
+    CRON_REMOVE = 0x44      # Request to remove a cron job
+    CRON_RESULT = 0x45      # Job execution result (to chat)
     
     # File Operations
     FILE_LIST = 0x50        # Request/response directory listing

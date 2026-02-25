@@ -3,8 +3,13 @@
 Run ClawChat LLM Server
 
 Usage:
+    python run_llm_server.py                    # Uses CLAWCHAT_LLM_PROVIDER from .env
     python run_llm_server.py --provider deepseek
     python run_llm_server.py --provider openai
+    
+Environment:
+    CLAWCHAT_LLM_PROVIDER - Default LLM provider (deepseek, openai, anthropic)
+    CLAWCHAT_BOOTSTRAP_KEY - Bootstrap key for security files
 """
 
 import sys

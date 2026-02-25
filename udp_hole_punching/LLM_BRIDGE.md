@@ -41,11 +41,23 @@ $env:OPENAI_API_KEY="your-openai-api-key"
 $env:ANTHROPIC_API_KEY="your-anthropic-api-key"
 ```
 
-### 2. Start LLM Server
+### 2. Configure Provider (Optional)
+
+Set default provider in `.env`:
+```ini
+CLAWCHAT_LLM_PROVIDER=deepseek    # deepseek, openai, or anthropic
+```
+
+**Or** use command line:
+```powershell
+python run_llm_server.py --provider deepseek
+```
+
+### 3. Start LLM Server
 
 ```powershell
 cd udp_hole_punching
-python run_llm_server.py --provider deepseek
+python run_llm_server.py           # Uses CLAWCHAT_LLM_PROVIDER from .env
 ```
 
 ### 3. Connect with GUI Client
@@ -62,21 +74,27 @@ Click **Connect** → Select the security file → Start chatting with AI!
 
 ```bash
 python run_llm_server.py \
-  --provider deepseek \          # LLM provider: deepseek, openai, anthropic
+  --provider deepseek \          # LLM provider (default: from CLAWCHAT_LLM_PROVIDER env var)
   --ip 127.0.0.1 \               # Server IP
   --port 55555 \                 # Server port (random if not specified)
   --security-dir ./security \    # Security files directory
   --llm-session session.json     # Conversation save file
+  --cron-file ./context/CRON.md  # Cron jobs file
 ```
+
+**Note**: If `--provider` is not specified, the server uses `CLAWCHAT_LLM_PROVIDER` from `.env` (defaults to `deepseek`).
 
 ### Environment Variables
 
-| Variable | Purpose |
-|----------|---------|
-| `DEEPSEEK_API_KEY` | API key for DeepSeek |
-| `OPENAI_API_KEY` | API key for OpenAI |
-| `ANTHROPIC_API_KEY` | API key for Anthropic |
-| `CLAWCHAT_BOOTSTRAP_KEY` | Bootstrap key for security files |
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `CLAWCHAT_LLM_PROVIDER` | Default LLM provider | `deepseek` |
+| `DEEPSEEK_API_KEY` | API key for DeepSeek | - |
+| `OPENAI_API_KEY` | API key for OpenAI | - |
+| `ANTHROPIC_API_KEY` | API key for Anthropic | - |
+| `CLAWCHAT_BOOTSTRAP_KEY` | Bootstrap key for security files | - |
+| `CLAWCHAT_CONTEXT_DIR` | Path to context files | `./context` |
+| `CLAWCHAT_BASE_PATH` | File manager root directory | `./clawchat_data` |
 
 ## Architecture
 

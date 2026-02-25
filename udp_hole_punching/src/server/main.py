@@ -5,8 +5,13 @@ Dark server that:
 - Generates security files for initial connection
 - Listens for UDP hole punch attempts
 - Handles encrypted communication
+- Relays messages to LLM Server
 - Implements port rotation
 - Supports Compromised Protocol
+
+Architecture:
+    GUI Client ←→ Hole Punching Server ←→ LLM Server
+    (public)       (public)              (localhost)
 """
 
 import os
@@ -38,13 +43,18 @@ class ClawChatServer:
     Runs as a dark server (no open ports until hole punch).
     """
     
+    # Default LLM server port
+    DEFAULT_LLM_PORT = 55556
+    
     def __init__(
         self,
         security_directory: str,
         bootstrap_key: bytes,
         server_ip: str,
         server_port: int = None,
-        server_id: str = "clawchat-server"
+        server_id: str = "clawchat-server",
+        llm_server_ip: str = "127.0.0.1",
+        llm_server_port: int = None
     ):
         """
         Initialize server.
@@ -55,12 +65,16 @@ class ClawChatServer:
             server_ip: Server public IP
             server_port: Server UDP port (random if None)
             server_id: Unique server identifier
+            llm_server_ip: LLM server IP (default: localhost)
+            llm_server_port: LLM server port (default: 55556)
         """
         self.security_directory = security_directory
         self.bootstrap_key = bootstrap_key
         self.server_ip = server_ip
         self.server_port = server_port or self._select_random_port()
         self.server_id = server_id
+        self.llm_server_ip = llm_server_ip
+        self.llm_server_port = llm_server_port or self.DEFAULT_LLM_PORT
         
         # Components
         self.file_generator = SecurityFileGenerator(
@@ -73,6 +87,9 @@ class ClawChatServer:
         self.crypto: Optional[CryptoManager] = None
         self.key_rotator: Optional[KeyRotator] = None
         self.compromised_handler: Optional[CompromisedProtocolHandler] = None
+        
+        # LLM relay socket
+        self.llm_socket: Optional[socket.socket] = None
         
         # State
         self.running = False
@@ -93,6 +110,76 @@ class ClawChatServer:
         port = sock.getsockname()[1]
         sock.close()
         return port
+    
+    def _connect_to_llm(self) -> bool:
+        """
+        Connect to LLM server.
+        
+        Returns:
+            True if connection successful
+        """
+        print(f"[Server] Connecting to LLM server at {self.llm_server_ip}:{self.llm_server_port}...")
+        try:
+            self.llm_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.llm_socket.settimeout(2.0)
+            
+            # Try multiple times (LLM server might still be starting)
+            for attempt in range(3):
+                try:
+                    # Test connection by sending ping
+                    ping_msg = Message(MessageType.KEEPALIVE, {'ping': True})
+                    self.llm_socket.sendto(ping_msg.to_bytes(), 
+                                           (self.llm_server_ip, self.llm_server_port))
+                    
+                    # Wait for pong
+                    data, addr = self.llm_socket.recvfrom(1024)
+                    response = Message.from_bytes(data)
+                    if response.msg_type == MessageType.KEEPALIVE:
+                        print(f"[Server] LLM connection established")
+                        return True
+                except socket.timeout:
+                    print(f"[Server] LLM ping attempt {attempt + 1}/3...")
+                    time.sleep(0.5)
+                    continue
+            
+            print(f"[Server] Could not reach LLM server after 3 attempts")
+            return False
+            
+        except Exception as e:
+            print(f"[Server] LLM connection error: {e}")
+            return False
+    
+    def _relay_to_llm(self, msg: Message) -> Optional[Message]:
+        """
+        Relay message to LLM server and return response.
+        
+        Args:
+            msg: Message to relay
+            
+        Returns:
+            Response message from LLM, or None on error
+        """
+        if not self.llm_socket:
+            return None
+        
+        try:
+            # Send to LLM server
+            self.llm_socket.sendto(msg.to_bytes(),
+                                  (self.llm_server_ip, self.llm_server_port))
+            
+            # Wait for response (with timeout)
+            self.llm_socket.settimeout(60.0)  # 60s for AI processing
+            data, _ = self.llm_socket.recvfrom(8192)
+            
+            response = Message.from_bytes(data)
+            return response
+            
+        except socket.timeout:
+            print("[Server] LLM timeout")
+            return None
+        except Exception as e:
+            print(f"[Server] LLM relay error: {e}")
+            return None
     
     def _on_key_rotation(self, old_keys, new_keys):
         """Callback for key rotation."""
@@ -123,6 +210,15 @@ class ClawChatServer:
         print(f"\n{'='*60}")
         print(f"  ClawChat UDP Hole Punching Server v2.0")
         print(f"{'='*60}\n")
+        
+        # Connect to LLM server (REQUIRED)
+        print(f"[Server] Connecting to LLM server at {self.llm_server_ip}:{self.llm_server_port}...")
+        if not self._connect_to_llm():
+            print("[Server] ERROR: Cannot reach LLM server")
+            print("[Server] Please ensure LLM server is running:")
+            print("    python run_llm_server.py")
+            return
+        print("[Server] Connected to LLM server")
         
         # Generate or load security file
         if not self.shared_secret:
@@ -233,24 +329,51 @@ class ClawChatServer:
             self._handle_compromised(msg, addr)
         elif msg.msg_type == MessageType.PUNCH:
             self._handle_punch(msg, addr)
+        elif msg.msg_type in (MessageType.FILE_LIST, MessageType.FILE_DOWNLOAD, 
+                              MessageType.FILE_UPLOAD, MessageType.FILE_DELETE,
+                              MessageType.FILE_RENAME, MessageType.FILE_MKDIR,
+                              MessageType.CRON_LIST, MessageType.CRON_RUN, 
+                              MessageType.CRON_RELOAD, MessageType.CRON_ADD,
+                              MessageType.CRON_REMOVE, MessageType.CRON_RESULT):
+            self._handle_relay(msg, addr)
         else:
             print(f"[Server] Unknown message type: {msg.msg_type}")
     
     def _handle_chat(self, msg: Message, addr):
-        """Handle chat message."""
+        """Handle chat message - relay to LLM server."""
         text = msg.payload.get('text', '')
         sender = msg.payload.get('sender', 'unknown')
         print(f"[Chat] {sender}: {text}")
         
-        # Echo back
-        self._send_message(MessageType.CHAT, {
-            'text': f"Echo: {text}",
-            'sender': 'server'
-        })
+        # Relay to LLM server
+        response = self._relay_to_llm(msg)
+        
+        if response:
+            # Forward LLM response to client
+            self._send_message(response.msg_type, response.payload)
+            response_text = response.payload.get('text', '')
+            print(f"[Chat] Assistant: {response_text[:80]}...")
+        else:
+            # Error talking to LLM
+            self._send_message(MessageType.CHAT, {
+                'text': '[Error: Cannot reach LLM server]',
+                'sender': 'system'
+            })
     
     def _handle_keepalive(self, msg: Message, addr):
         """Handle keepalive."""
         self._send_message(MessageType.KEEPALIVE, {'pong': True})
+    
+    def _handle_relay(self, msg: Message, addr):
+        """Relay file/cron messages to LLM server."""
+        response = self._relay_to_llm(msg)
+        if response:
+            self._send_message(response.msg_type, response.payload)
+        else:
+            self._send_message(msg.msg_type, {
+                'success': False,
+                'error': 'Cannot reach LLM server'
+            })
     
     def _handle_key_rotation(self, msg: Message, addr):
         """Handle key rotation message."""
@@ -295,6 +418,9 @@ class ClawChatServer:
         if self.socket:
             self.socket.close()
         
+        if self.llm_socket:
+            self.llm_socket.close()
+        
         runtime = time.time() - self.start_time
         print(f"\n[Server] Stopped")
         print(f"[Server] Runtime: {runtime:.1f}s")
@@ -304,12 +430,14 @@ class ClawChatServer:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description='ClawChat UDP Server')
+    parser = argparse.ArgumentParser(description='ClawChat UDP Hole Punching Server')
     parser.add_argument('--ip', default='0.0.0.0', help='Server IP')
     parser.add_argument('--port', type=int, default=None, help='Server port (random if not set)')
     parser.add_argument('--security-dir', default='/home/openclaw/clawchat/security',
                         help='Security files directory')
     parser.add_argument('--bootstrap-key', default=None, help='Bootstrap key (base64)')
+    parser.add_argument('--llm-ip', default='127.0.0.1', help='LLM server IP')
+    parser.add_argument('--llm-port', type=int, default=55556, help='LLM server port')
     
     args = parser.parse_args()
     
@@ -329,7 +457,9 @@ def main():
         security_directory=args.security_dir,
         bootstrap_key=bootstrap_key,
         server_ip=args.ip,
-        server_port=args.port
+        server_port=args.port,
+        llm_server_ip=args.llm_ip,
+        llm_server_port=args.llm_port
     )
     
     # Start
