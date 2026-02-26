@@ -162,10 +162,14 @@ class ClawChatLLMServer:
         self.crypto.set_session_keys(keys)
         
         # Create socket (for hole punching server only - localhost)
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                # Create TCP socket (for hole punching server only - localhost)
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind(('127.0.0.1', self.server_port))
+        self.socket.listen(1)  # Listen for incoming connections
         self.socket.settimeout(1.0)
+        self.client_socket = None
+        self.client_address = None
         
         # Setup LLM with context
         self._setup_context()
@@ -191,14 +195,46 @@ class ClawChatLLMServer:
         finally:
             self.stop()
     
-    def _process_loop(self):
-        # Receive message from hole punching server
+        def _process_loop(self):
+        # Accept TCP connection if not already connected
+        if not self.client_socket:
+            try:
+                self.socket.settimeout(1.0)
+                self.client_socket, self.client_address = self.socket.accept()
+                self.client_socket.settimeout(1.0)
+                print(f"[Server] Client connected: {self.client_address}")
+                
+                # Notify file generator to stop auto-regeneration
+                if self.file_generator:
+                    self.file_generator.mark_client_connected()
+            except socket.timeout:
+                return
+            except Exception as e:
+                print(f"[Server] Accept error: {e}")
+                return
+        
+        # Receive message from connected client
         try:
-            data, addr = self.socket.recvfrom(8192)
-            self._handle_message(data, addr)
+            data = self.client_socket.recv(8192)
+            if not data:
+                # Client disconnected
+                print(f"[Server] Client {self.client_address} disconnected")
+                self.client_socket.close()
+                self.client_socket = None
+                self.client_address = None
+                return
+            
+            self._handle_message(data, self.client_address)
         except socket.timeout:
             pass
+        except ConnectionError:
+            # Client disconnected
+            print(f"[Server] Client {self.client_address} disconnected")
+            self.client_socket.close()
+            self.client_socket = None
+            self.client_address = None
         except Exception as e:
+            print(f"[Server] Error: {e}")
             print(f"[Server] Error: {e}")
     
     def _handle_message(self, data: bytes, addr):
@@ -463,10 +499,29 @@ class ClawChatLLMServer:
         
         return name
     
-    def stop(self):
+        def stop(self):
+        """Stop the server."""
         self.running = False
+        
+        # Close client socket if connected
+        if self.client_socket:
+            try:
+                self.client_socket.close()
+            except:
+                pass
+        
+        # Close server socket
         if self.socket:
-            self.socket.close()
+            try:
+                self.socket.close()
+            except:
+                pass
+        
+        # Stop LLM bridge
+        if self.llm_bridge:
+            self.llm_bridge.stop()
+        
+        print("[Server] Stopped")
         if self.llm_bridge:
             self.llm_bridge.stop()
         if self.cron_scheduler:

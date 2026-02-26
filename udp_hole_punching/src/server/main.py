@@ -46,6 +46,45 @@ class ClawChatServer:
     # Default LLM server port
     DEFAULT_LLM_PORT = 55556
     
+    
+    def _send_to_llm_tcp(self, msg: Message) -> Optional[Message]:
+        """Send message to LLM server over TCP and wait for response."""
+        if not self.llm_socket:
+            if not self._connect_to_llm_server():
+                return None
+        
+        try:
+            # Send message
+            self.llm_socket.send(msg.to_bytes())
+            
+            # Wait for response (longer timeout for AI processing)
+            self.llm_socket.settimeout(60.0)
+            
+            # Receive response
+            data = self.llm_socket.recv(8192)
+            if not data:
+                print("[Server] LLM server closed connection")
+                self.llm_socket.close()
+                self.llm_socket = None
+                return None
+            
+            response = Message.from_bytes(data)
+            return response
+            
+        except socket.timeout:
+            print("[Server] LLM response timeout")
+            return None
+        except ConnectionError as e:
+            print(f"[Server] LLM connection error: {e}")
+            self.llm_socket.close()
+            self.llm_socket = None
+            return None
+        except Exception as e:
+            print(f"[Server] LLM communication error: {e}")
+            self.llm_socket.close()
+            self.llm_socket = None
+            return None
+
     def __init__(
         self,
         security_directory: str,
@@ -120,23 +159,36 @@ class ClawChatServer:
         """
         print(f"[Server] Connecting to LLM server at {self.llm_server_ip}:{self.llm_server_port}...")
         try:
-            self.llm_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.llm_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.llm_socket.settimeout(2.0)
             
             # Try multiple times (LLM server might still be starting)
             for attempt in range(3):
                 try:
-                    # Test connection by sending ping
-                    ping_msg = Message(MessageType.KEEPALIVE, {'ping': True})
-                    self.llm_socket.sendto(ping_msg.to_bytes(), 
-                                           (self.llm_server_ip, self.llm_server_port))
-                    
-                    # Wait for pong
-                    data, addr = self.llm_socket.recvfrom(1024)
-                    response = Message.from_bytes(data)
-                    if response.msg_type == MessageType.KEEPALIVE:
-                        print(f"[Server] LLM connection established")
-                        return True
+                                # Test connection by sending ping
+            try:
+                # Connect to LLM server (TCP)
+                self.llm_socket.connect((self.llm_server_ip, self.llm_server_port))
+                self.llm_socket.settimeout(2.0)
+                
+                # Send ping
+                ping_msg = Message(MessageType.KEEPALIVE, {'ping': True})
+                self.llm_socket.send(ping_msg.to_bytes())
+                
+                # Wait for pong
+                data = self.llm_socket.recv(1024)
+                response = Message.from_bytes(data)
+                if response.msg_type == MessageType.KEEPALIVE:
+                    print(f"[Server] LLM connection established")
+                    return True
+            except socket.timeout:
+                print(f"[Server] LLM ping attempt {attempt + 1}/3...")
+                time.sleep(0.5)
+                continue
+            except ConnectionRefusedError:
+                print(f"[Server] LLM server not ready...")
+                time.sleep(0.5)
+                continue
                 except socket.timeout:
                     print(f"[Server] LLM ping attempt {attempt + 1}/3...")
                     time.sleep(0.5)
