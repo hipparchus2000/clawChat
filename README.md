@@ -1,4 +1,8 @@
-# ClawChat - Secure P2P Communication System
+# ClawChat - Secure P2P Communication System ( and a replacement for openClaw )
+
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Stripe-orange?style=for-the-badge&logo=buy-me-a-coffee&logoColor=white)](https://buy.stripe.com/cNi5kDb0Q5Wp663gdgbjW00)
+
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 ![License](https://img.shields.io/github/license/hipparchus2000/clawChat)
